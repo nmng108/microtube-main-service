@@ -4,21 +4,29 @@ import nmng108.microtube.mainservice.dto.base.BaseResponse;
 import nmng108.microtube.mainservice.dto.video.request.CreateVideoDTO;
 import nmng108.microtube.mainservice.dto.video.request.UpdateVideoDTO;
 import nmng108.microtube.mainservice.dto.video.response.VideoDTO;
+import org.springframework.core.io.Resource;
+import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.web.multipart.MultipartFile;
 import reactor.core.publisher.Mono;
 
 import java.util.List;
 
 public interface VideoService {
-    Mono<BaseResponse<List<VideoDTO>>> getAllVideos();
+    Mono<BaseResponse<List<VideoDTO>>> getAll();
 
-    Mono<BaseResponse<VideoDTO>> getVideoById(long id);
+    Mono<BaseResponse<VideoDTO>> getById(long id);
 
-    Mono<BaseResponse<VideoDTO>> createVideoInfo(CreateVideoDTO video);
+    Mono<BaseResponse<VideoDTO>> create(CreateVideoDTO video);
 
-    void uploadVideo(long id, MultipartFile file);
+    /**
+     * Fetch master file
+     */
+    Mono<Resource> getMasterFile(long id);
+    Mono<Resource> getSegmentFile(long id, String resolution, String tsFilename);
 
-    Mono<BaseResponse<VideoDTO>> updateVideoInfo(long id, UpdateVideoDTO video);
+    Mono<BaseResponse<Void>> uploadVideo(long id, FilePart file);
 
-    Mono<BaseResponse<Void>> deleteVideo(long id);
+    Mono<BaseResponse<VideoDTO>> updateInfo(long id, UpdateVideoDTO video);
+
+    Mono<BaseResponse<Void>> delete(long id);
 }

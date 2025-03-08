@@ -12,6 +12,14 @@ ARG GLOWROOT_COLLECTOR_ADDRESS="http://localhost:8181"
 
 # Create a stage for resolving and downloading dependencies.
 FROM eclipse-temurin:21-jdk-jammy AS deps
+# Create a custom Java runtime
+RUN $JAVA_HOME/bin/jlink \
+         --add-modules java.base \
+         --strip-debug \
+         --no-man-pages \
+         --no-header-files \
+         --compress=2 \
+         --output /javaruntime
 
 WORKDIR /build
 
@@ -60,28 +68,33 @@ RUN java -Djarmode=layertools -jar target/app.jar extract --destination target/e
 ################################################################################
 
 # Create a new stage for running the application in development (local) environment.
+FROM eclipse-temurin:21-jre-alpine-3.21 AS development
+RUN apk --update add ffmpeg && \
+    apk cache clean && rm -rf /var/cache/apk/*
 
-FROM extract AS development
+WORKDIR /opt/app
 
-WORKDIR /build
-
-RUN cp -r /build/target/extracted/dependencies/. ./
-RUN cp -r /build/target/extracted/spring-boot-loader/. ./
-RUN cp -r /build/target/extracted/snapshot-dependencies/. ./
-RUN cp -r /build/target/extracted/application/. ./
+# Copy the executable from the "package" stage.
+COPY --from=extract build/target/extracted/dependencies/ ./
+COPY --from=extract build/target/extracted/spring-boot-loader/ ./
+COPY --from=extract build/target/extracted/snapshot-dependencies/ ./
+COPY --from=extract build/target/extracted/application/ ./
 #COPY glowroot/ glowroot/
 
-# Enable debugger
 ARG GLOWROOT_COLLECTOR_ADDRESS
+# Enable debugger
 ENV JAVA_TOOL_OPTIONS \
     --enable-preview \
+    -Dspring.profiles.active=dev \
     -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000
+#    -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000
 #    -javaagent:glowroot/glowroot.jar \
 #    -Dglowroot.collector.address=$GLOWROOT_COLLECTOR_ADDRESS
 
 EXPOSE 8080/tcp 8081/tcp 8000
 
-ENTRYPOINT [ "java", "-Dspring.profiles.active=dev", "org.springframework.boot.loader.launch.JarLauncher" ]
+#ENTRYPOINT sh
+ENTRYPOINT [ "java", "org.springframework.boot.loader.launch.JarLauncher" ]
 CMD [ "-Xms512m", "-Xmx3g" ]
 
 ################################################################################
@@ -91,7 +104,14 @@ CMD [ "-Xms512m", "-Xmx3g" ]
 # image from the install or build stage where the necessary files are copied
 # from the install stage.
 FROM eclipse-temurin:21-jre-jammy AS production
+# Copy JRE into this final image
+#ENV JAVA_HOME=/opt/java/openjdk
+#ENV PATH="$JAVA_HOME/bin:$PATH"
+#COPY --from=deps /javaruntime $JAVA_HOME
 
+RUN apt update && \
+    apt install ffmpeg -y && \
+    apt clean && rm -rf /var/lib/apt/lists/*
 # Create a non-privileged user that the app will run under.
 # See https://docs.docker.com/go/dockerfile-user-best-practices/
 ARG UID=10001
@@ -103,8 +123,10 @@ RUN adduser \
     --no-create-home \
     --uid "${UID}" \
     appuser
-RUN mkdir -p /opt/app/logs && chown -R appuser /opt/app/logs
+RUN mkdir -p /opt/app/logs && chown -R appuser /opt/app
 USER appuser
+
+WORKDIR /opt/app
 
 # Copy the executable from the "package" stage.
 COPY --from=extract build/target/extracted/dependencies/ ./

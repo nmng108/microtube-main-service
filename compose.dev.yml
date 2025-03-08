@@ -17,6 +17,7 @@ services:
         GLOWROOT_COLLECTOR_ADDRESS: http://glowroot:8181
     volumes:
       - server-log:/opt/app/logs
+      - ./tmp/:/opt/app/tmp
     networks:
       - default
 #      - monitoring-network

@@ -14,6 +14,7 @@ import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -26,6 +27,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.reactive.resource.NoResourceFoundException;
+import org.springframework.web.server.MissingRequestValueException;
+import org.springframework.web.server.UnsupportedMediaTypeStatusException;
 
 import java.lang.reflect.Field;
 import java.nio.file.NoSuchFileException;
@@ -93,11 +96,11 @@ public class ProvidedExceptionHandler {
      * @param e PropertyReferenceException
      * @return 400
      */
-    @ExceptionHandler(PropertyReferenceException.class)
-    public ResponseEntity<ExceptionResponse> handleMismatchPropertyName(PropertyReferenceException e) {
+    @ExceptionHandler(UnsupportedMediaTypeStatusException.class)
+    public ResponseEntity<ExceptionResponse> handleUnsupportedMediaTypeStatusException(UnsupportedMediaTypeStatusException e) {
 //        log.info("({}) {}", e.getClass().getCanonicalName(), e.getMessage());
 
-        return null;
+        return ResponseEntity.status(e.getStatusCode()).body(new ExceptionResponse(ErrorCode.E00002, Collections.singletonList(e.getSupportedMediaTypes().stream().map(mediaType -> mediaType.getType() + "/" + mediaType.getSubtypeSuffix()).collect(Collectors.joining(",")))));
 //        return new InvalidRequestException(e.getMessage()).toResponse();
     }
 
@@ -112,12 +115,22 @@ public class ProvidedExceptionHandler {
      *
      * @return 400 - Bad request
      */
+    @ExceptionHandler(MissingRequestValueException.class)
+    public ResponseEntity<ExceptionResponse> handleMissingRequestValueException(MissingRequestValueException e) {
+        return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002, Collections.singletonList(e.getReason())));
+    }
+
+    /**
+     * Thrown when request data is parsed by DataBinder and violates 1 or several constraints (e.g. Bean Validation).
+     *
+     * @return 400 - Bad request
+     */
     @ExceptionHandler(BindException.class)
     public ResponseEntity<ExceptionResponse> handleDataBindingValidationException(MethodArgumentNotValidException e) {
         String messageDelimiter = messageSource.getMessage("validation.messages.delimiter", new Object[]{}, MESSAGE_DELIMITER, LocaleContextHolder.getLocale());
 
         // field_name => error_message
-        return ResponseEntity.ofNullable(new ExceptionResponse(ErrorCode.E00002, e.getFieldErrors().stream().collect(
+        return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002, e.getFieldErrors().stream().collect(
                 Collectors.toUnmodifiableMap((fieldError) -> {
                     try {
                         Class<?> type = e.getParameter().getParameterType();

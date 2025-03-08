@@ -8,7 +8,6 @@ import org.springframework.data.annotation.*;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Table(name = "VIDEO", schema = Constants.DATABASE_NAME)
@@ -27,6 +26,12 @@ public class Video extends Accountable {
     String description;
     @Column("VISIBILITY")
     int visibility;
+    @Column("ORIGINAL_FILENAME")
+    String originalFilename;
+    @Column("TEMP_FILEPATH")
+    String tempFilepath;
+    @Column("DEST_FILEPATH")
+    String destFilepath;
 
     @Column("CHANNEL_ID")
     long channelId;
