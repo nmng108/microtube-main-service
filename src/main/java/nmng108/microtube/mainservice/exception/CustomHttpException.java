@@ -40,7 +40,7 @@ public class CustomHttpException extends HttpStatusCodeException {
         this(httpStatus, errorCode, Collections.singletonList(message));
     }
 
-    public CustomHttpException(HttpStatus httpStatus, ErrorCode errorCode, @Nullable List<String> details) {
+    public CustomHttpException(HttpStatus httpStatus, ErrorCode errorCode, @Nullable List<?> details) {
         this(httpStatus, errorCode, details, null);
     }
 //
@@ -77,7 +77,7 @@ public class CustomHttpException extends HttpStatusCodeException {
      *
      * @param details {@link List}-structured.
      */
-    public CustomHttpException(HttpStatus httpStatus, ErrorCode errorCode, @Nullable List<String> details, @Nullable HttpHeaders headers) {
+    public CustomHttpException(HttpStatus httpStatus, ErrorCode errorCode, @Nullable List<?> details, @Nullable HttpHeaders headers) {
         super("", httpStatus, errorCode.code, headers, null, null);
         this.errorCode = errorCode;
         this.details = details;

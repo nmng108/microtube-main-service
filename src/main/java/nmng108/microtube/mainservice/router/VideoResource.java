@@ -2,6 +2,7 @@ package nmng108.microtube.mainservice.router;
 
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Pattern;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import nmng108.microtube.mainservice.dto.base.BaseResponse;
@@ -57,7 +58,7 @@ public class VideoResource {
     }
 
     @Operation(summary = "Fetch master/index file of specified video")
-    @GetMapping(value = "/{id}/master.m3u8", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    @GetMapping(value = "/{id}/master.m3u8", produces = "application/vnd.apple.mpegurl"/*MediaType.APPLICATION_OCTET_STREAM_VALUE*/)
     public ResponseEntity<Mono<Resource>> getMasterFile(@PathVariable("id") long id) {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, "application/vnd.apple.mpegurl")
@@ -67,24 +68,24 @@ public class VideoResource {
     }
 
     @Operation(summary = "Fetch segment file of specified video")
-    @GetMapping(value = "/{id}/{resolution:\\d{3,4}p}/{tsFile:[\\w]+.ts}", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
+    @GetMapping(value = "/{id}/{resolution:^\\d{3,4}p$}/{filename:^\\w+\\.\\w{2,4}$}", produces = "application/vnd.apple.mpegurl"/*MediaType.APPLICATION_OCTET_STREAM_VALUE*/)
     public Mono<ResponseEntity<Resource>> getMasterFile(
             @PathVariable("id") long id,
             @PathVariable("resolution") String resolution,
-            @PathVariable("tsFile") String tsFilename
+            @PathVariable("filename") @Pattern(regexp = "^((playlist\\.m3u8)|(\\w+\\.ts))$") String filename
     ) {
-        return videoService.getSegmentFile(id, resolution, tsFilename)
+        return videoService.getResolutionBasedFile(id, resolution, filename)
                 .map((resource) -> ResponseEntity.ok()
                         .header(HttpHeaders.CONTENT_TYPE, "application/vnd.apple.mpegurl")
                         .header(HttpHeaders.CONTENT_DISPOSITION, STR."attachment; filename=\{resource.getFilename()}")
-                        .header(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, STR."\{HttpHeaders.CONTENT_TYPE}, \{HttpHeaders.CONTENT_LENGTH}, \{HttpHeaders.CONTENT_DISPOSITION}")
+                        .header(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, String.join(", ", HttpHeaders.CONTENT_TYPE, HttpHeaders.CONTENT_LENGTH, HttpHeaders.CONTENT_DISPOSITION))
                         .body(resource));
     }
 
-    @PostMapping(value = "/{id}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<Mono<BaseResponse<Void>>> uploadVideo(@PathVariable("id") long id, @RequestPart(name = "file") FilePart file) {
-        return ResponseEntity.ok(videoService.uploadVideo(id, file));
-    }
+//    @PostMapping(value = "/{id}/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    public ResponseEntity<Mono<BaseResponse<Void>>> uploadVideo(@PathVariable("id") long id, @RequestPart(name = "file") Mono<FilePart> file) {
+//        return ResponseEntity.ok(videoService.uploadVideo(id, file));
+//    }
 
     @PatchMapping("/{id}")
     public ResponseEntity<Mono<BaseResponse<VideoDTO>>> updateInfo(@PathVariable("id") long id, @RequestBody @Valid UpdateVideoDTO dto) {

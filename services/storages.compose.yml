@@ -2,15 +2,16 @@ services:
   mysql.db:
     image: mysql:8.0
     restart: on-failure
-    command: mysqld --default-authentication-plugin caching_sha2_password
+    command: --default-authentication-plugin caching_sha2_password --lower-case-table-names=1
     #    command: [ mysqld, --default-authentication-plugin mysql_native_password, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --innodb_monitor_enable=all, --max-connections=1001 ]
 
     #    user: mysql_user
     #   secrets:
     #     - db-password
     volumes:
-      - db-data:/var/lib/mysql
-      - ./services/db/schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./data/mysql.db/:/var/lib/mysql/
+#      - ./services/db/my.cnf:/etc/my.cnf
     environment:
       MYSQL_DATABASE: ${DATABASE_NAME:-MICROTUBE}
       MYSQL_USER: ${DATABASE_USERNAME:-dbuser}
@@ -20,7 +21,7 @@ services:
       - 3306
       - 33060
     networks:
-      - default
+      - microtube-network
     ports:
       # These ports should be enabled only for development purpose
       - 3306:3306
@@ -30,11 +31,29 @@ services:
       interval: 20s
       timeout: 10s
       retries: 10
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    restart: on-failure
+    command: [ "server", "/data", "--console-address", ":9001" ]
+    volumes:
+      - ./data/minio/:/data
+    networks:
+      - microtube-network
+    ports:
+      - 9000:9000
+      - 9001:9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
 
-volumes:
-  db-data:
-    driver: local
+#volumes:
+#  db-data:
+#    driver: local
 
 #  secrets:
 #    db-password:
 #     file: db/password.txt
+networks:
+  microtube-network:
+    name: microtube-network

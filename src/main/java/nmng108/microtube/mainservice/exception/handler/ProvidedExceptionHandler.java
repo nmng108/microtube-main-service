@@ -4,37 +4,37 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.ConstraintViolationException;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import nmng108.microtube.mainservice.dto.base.BaseResponse;
 import nmng108.microtube.mainservice.dto.base.ErrorCode;
 import nmng108.microtube.mainservice.dto.base.ExceptionResponse;
+import nmng108.microtube.mainservice.exception.BadRequestException;
 import nmng108.microtube.mainservice.exception.InternalServerException;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
-import org.springframework.data.mapping.PropertyReferenceException;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.validation.BindException;
-import org.springframework.validation.FieldError;
-import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.bind.annotation.ResponseStatus;
-import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.reactive.resource.NoResourceFoundException;
 import org.springframework.web.server.MissingRequestValueException;
 import org.springframework.web.server.UnsupportedMediaTypeStatusException;
 
-import java.lang.reflect.Field;
+import java.lang.annotation.Annotation;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
 import java.nio.file.NoSuchFileException;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @RestControllerAdvice
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
@@ -72,7 +72,7 @@ public class ProvidedExceptionHandler {
      * Manually thrown when the resource is not found
      */
     @ExceptionHandler(NoResourceFoundException.class)
-    public ResponseEntity<BaseResponse<?>> handleSpringNoServletResourceFoundException(NoResourceFoundException e, ServerHttpRequest serverHttpRequest) {
+    public ResponseEntity<BaseResponse<?>> handleSpringNoResourceFoundException(NoResourceFoundException e, ServerHttpRequest serverHttpRequest) {
         String reason = messageSource.getMessage("errors.resource-path-not-found",
                 new Object[]{serverHttpRequest.getPath()}, e.getMessage(), LocaleContextHolder.getLocale());
 
@@ -125,27 +125,55 @@ public class ProvidedExceptionHandler {
      *
      * @return 400 - Bad request
      */
-    @ExceptionHandler(BindException.class)
-    public ResponseEntity<ExceptionResponse> handleDataBindingValidationException(MethodArgumentNotValidException e) {
-        String messageDelimiter = messageSource.getMessage("validation.messages.delimiter", new Object[]{}, MESSAGE_DELIMITER, LocaleContextHolder.getLocale());
+    @ExceptionHandler(WebExchangeBindException.class)
+    public ResponseEntity<ExceptionResponse> handleDataBindingValidationException(WebExchangeBindException e) {
+//        String messageDelimiter = messageSource.getMessage("validation.messages.delimiter", new Object[]{}, MESSAGE_DELIMITER, LocaleContextHolder.getLocale());
+        Class<?> type = e.getBindingResult().getTarget().getClass();
 
         // field_name => error_message
-        return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002, e.getFieldErrors().stream().collect(
-                Collectors.toUnmodifiableMap((fieldError) -> {
-                    try {
-                        Class<?> type = e.getParameter().getParameterType();
-                        Field field = type.getDeclaredField(fieldError.getField());
-
-                        return field.getAnnotation(JsonProperty.class).value(); // may throw NullPointerException
-                    } catch (NoSuchFieldException innerEx) {
-                        throw new RuntimeException(innerEx);
-                    } catch (NullPointerException ignored) {
-                    }
-
-                    return fieldError.getField();
-                }, FieldError::getDefaultMessage, (a, b) -> a + messageDelimiter + b)
-        )));
+        return Optional.of(e.getFieldErrors().stream().map((fieldError) -> {
+                            try {
+                                return Optional.of(type.getDeclaredField(fieldError.getField()))
+                                        .map((field) -> field.getAnnotation(JsonProperty.class))
+                                        .map(JsonProperty::value)
+                                        .or(() -> Optional.of(fieldError.getField()))
+                                        .map((propertyName) -> new ExceptionResponse.ViolatedField(propertyName, fieldError.getDefaultMessage()))
+                                        .get(); // may throw NullPointerException
+                            } catch (NoSuchFieldException innerEx) {
+                                throw new RuntimeException(innerEx);
+                            }
+                        }).toList()
+                )
+                .map((details) -> new BadRequestException(ErrorCode.E00002, details))
+                .map(BadRequestException::toResponse)
+                .get();
     }
+
+//    /**
+//     * Thrown when request data is parsed by DataBinder and violates 1 or several constraints (e.g. Bean Validation).
+//     *
+//     * @return 400 - Bad request
+//     */
+//    @ExceptionHandler(BindException.class)
+//    public ResponseEntity<ExceptionResponse> handleDataBindingValidationException(MethodArgumentNotValidException e) {
+//        String messageDelimiter = messageSource.getMessage("validation.messages.delimiter", new Object[]{}, MESSAGE_DELIMITER, LocaleContextHolder.getLocale());
+//
+//        // field_name => error_message
+//        return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002, e.getFieldErrors().stream().collect(
+//                Collectors.toUnmodifiableMap((fieldError) -> {
+//                    try {
+//                        Class<?> type = e.getParameter().getParameterType();
+//                        Field field = type.getDeclaredField(fieldError.getField());
+//
+//                        return Optional.ofNullable(field.getAnnotation(JsonProperty.class))
+//                                .map(JsonProperty::value)
+//                                .orElse(fieldError.getField()); // may throw NullPointerException
+//                    } catch (NoSuchFieldException innerEx) {
+//                        throw new RuntimeException(innerEx);
+//                    }
+//                }, FieldError::getDefaultMessage, (a, b) -> a + messageDelimiter + b)
+//        )));
+//    }
 
     /**
      * Thrown when request data is only parsed by MessageResolvers and violates 1 or several constraints (e.g. Bean Validation).
@@ -155,20 +183,86 @@ public class ProvidedExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ExceptionResponse> handleConstraintValidation(ConstraintViolationException e) {
 //        log.info("({}) {}", e.getClass().getCanonicalName(), e.getMessage());
+        return Optional.of(
+                        e.getConstraintViolations().stream()
+                                .map((violation) -> {
+                                    String[] splitPropertyPath = violation.getPropertyPath().toString().split("\\.");
+                                    String methodName = splitPropertyPath[splitPropertyPath.length - 2];
+                                    String propertyName = splitPropertyPath[splitPropertyPath.length - 1];
+                                    Class<?>[] paramTypes = Stream.of(violation.getExecutableParameters()).map(Object::getClass).toArray(Class[]::new);
+                                    Method method;
 
-        HashMap<String, String> details = new HashMap<>();
+                                    method = Stream.of(violation.getRootBeanClass().getDeclaredMethods())
+                                            .filter((m) -> m.getName().equals(methodName))
+                                            .filter((m) -> isSameParameters(Stream.of(m.getParameters()).map(Parameter::getType).toArray(Class<?>[]::new), paramTypes))
+                                            .findFirst()
+                                            .orElseThrow(() -> new InternalServerException(STR."Cannot determine controller method for violated param \"\{violation.getRootBeanClass().getName()}.\{violation.getPropertyPath().toString()}"))
+                                    ;
 
-        e.getConstraintViolations().forEach((ex) -> {
-            String[] fieldPath = ex.getPropertyPath().toString().split("\\.");
+                                    return new ExceptionResponse.ViolatedField(getExposedParamName(method, propertyName), violation.getMessage());
+                                })
+                                .toList()
+                )
+                .map((responseDetails) -> new BadRequestException(ErrorCode.E00002, responseDetails))
+                .map(BadRequestException::toResponse)
+                .get();
+    }
 
-            log.info(ex.getConstraintDescriptor().getComposingConstraints().toString());
+    private boolean isSameParameters(Class<?>[] a0, Class<?>[] a1) {
+        if (a0.length != a1.length) {
+            return false;
+        }
 
-            if (fieldPath.length > 0) {
-                details.put(fieldPath[fieldPath.length - 1], ex.getMessage());
+        int assignedSide = -1; // -1 is initial state, determined by the first couple of param; 0 means all of a0 are assignable from a1, and inversely for 1
+
+        for (int i = 0; i < a0.length; i++) {
+            Class<?> p0 = a0[i];
+            Class<?> p1 = a1[i];
+
+            if (p0.isAssignableFrom(p1)) {
+                if (assignedSide == -1) {
+                    assignedSide = 0;
+                } else if (assignedSide == 1) {
+                    return false;
+                }
+            } else if (p1.isAssignableFrom(p0)) {
+                if (assignedSide == -1) {
+                    assignedSide = 1;
+                } else if (assignedSide == 0) {
+                    return false;
+                }
+            } else {
+                return false;
             }
-        });
+        }
 
-        return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00001, details));
+        return true;
+    }
+
+    /**
+     * This method maps the internal parameter name to the exposed name from
+     * {@link RequestParam}, {@link PathVariable}, {@link RequestPart} annotations.
+     */
+    @SneakyThrows
+    private String getExposedParamName(Method method, String propertyName) {
+        // Loop over the method parameters and their annotations
+        return Stream.of(method.getParameters())
+                .filter((parameter) -> parameter.getName().equals(propertyName))
+                .findFirst()
+                .map((parameter) -> {
+                    for (Annotation annotation : parameter.getAnnotations()) {
+                        if (annotation instanceof RequestParam || annotation instanceof PathVariable || annotation instanceof RequestPart) {
+                            try {
+                                return (String) annotation.getClass().getMethod("value").invoke(annotation);
+                            } catch (IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+
+                    return null;
+                })
+                .orElse("");
     }
 
     /**
@@ -201,6 +295,8 @@ public class ProvidedExceptionHandler {
         // trace error
         e.printStackTrace();
 
+        // WARNING: Responding with internal error message like this is discouraged and should only be conducted in dev env,
+        // so remove the message or replace it with another appropriate one in production.
         return new InternalServerException(e.getMessage()).toResponse();
     }
 }

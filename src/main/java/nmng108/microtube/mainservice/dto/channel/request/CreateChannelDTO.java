@@ -21,7 +21,7 @@ public class CreateChannelDTO {
     @Min(0)
     @Schema(description = "Dev plan: remove this prop due to an user can only create a channel for his/her own")
     long userId;
-    @Size(min = 3, max = 15)
+    @Size(min = 3, max = 25)
     String name;
     @Size(min = 3, max = 30)
     @Pattern(regexp = "^[a-z]+[a-z\\d]*(_[a-z\\d]+)*$")

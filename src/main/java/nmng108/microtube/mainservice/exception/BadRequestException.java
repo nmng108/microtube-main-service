@@ -13,31 +13,31 @@ import java.util.Map;
 @Getter
 public class BadRequestException extends CustomHttpException {
     private static final HttpStatus DEFAULT_HTTP_STATUS = HttpStatus.BAD_REQUEST;
-    private static final ErrorCode DEFAULT_ERROR_CODE = ErrorCode.E00002;
+    private static final ErrorCode DEFAULT_ERROR_CODE = ErrorCode.E00003;
 
     /**
-     * Apply the default error code: {@link ErrorCode#E00002}.
+     * Apply the default error code: {@link ErrorCode#E00003}.
      */
     public BadRequestException() {
         this(DEFAULT_ERROR_CODE);
     }
 
     /**
-     * Apply the default error code: {@link ErrorCode#E00002}.
+     * Apply the default error code: {@link ErrorCode#E00003}.
      */
     public BadRequestException(String message) {
         this(DEFAULT_ERROR_CODE, message);
     }
 
     public BadRequestException(ErrorCode errorCode) {
-        this(errorCode, (List<String>) null);
+        this(errorCode, (List<?>) null);
     }
 
     public BadRequestException(ErrorCode errorCode, String message) {
         this(errorCode, Collections.singletonList(message));
     }
 
-    public BadRequestException(ErrorCode errorCode, @Nullable List<String> details) {
+    public BadRequestException(ErrorCode errorCode, @Nullable List<?> details) {
         this(errorCode, details, null);
     }
 
@@ -53,7 +53,7 @@ public class BadRequestException extends CustomHttpException {
      *
      * @param details {@link List}-structured.
      */
-    public BadRequestException(ErrorCode errorCode, @Nullable List<String> details, @Nullable HttpHeaders headers) {
+    public BadRequestException(ErrorCode errorCode, @Nullable List<?> details, @Nullable HttpHeaders headers) {
         super(DEFAULT_HTTP_STATUS, errorCode, details, headers);
     }
 

@@ -21,18 +21,24 @@ spring:
     username: ${MAIN_DB_USERNAME:dbuser}
     password: ${MAIN_DB_PASSWORD:abc123}
 
-  mvc:
-    format:
-      date-time: iso
   messages: # Alternative config option: create a bean of ReloadableResourceBundleMessageSource
     basename: ${MESSAGES_BASENAME:messages,custom-response-status,errors,error-codes} # name prefix for the file containing message props. Format: config.i18n.messages (dot-separated path names)
     cache-duration: 3600
     encoding: UTF-8
 
-#  jpa:
-#    properties:
-#      hibernate:
-#        dialect: org.hibernate.dialect.MySQLDialect
+datasource:
+  object-store:
+    url: ${OBJECT_STORE_URL:http://127.0.0.1:9000}
+    username: ${OBJECT_STORE_USERNAME:admin}
+    password: ${OBJECT_STORE_PASSWORD:minioadmin}
+    bucket:
+      hls: ${OBJECT_STORE_BUCKET_HLS:hls}
+      user-store: ${OBJECT_STORE_BUCKET_USER_STORE:user-store}
+
+application:
+  jwt:
+    secret: ${JWT_SECRET:asdfg12345gyugyguggi67fy12ijpcsjop4904wojiUFHAKFHjoihouhu}
+    usage-duration: ${JWT_USAGE_DURATION:120000} # Unit: millisecond
 
 springdoc:
   swagger-ui:
@@ -45,35 +51,20 @@ springdoc:
     enabled: true
 #    path: /v3/api-docs
 
-application:
-  jwt:
-    secret: ${JWT_SECRET:asdfg12345gyugyguggi67fy12ijpcsjop4904wojiUFHAKFHjoihouhu}
-    usage-duration: ${JWT_USAGE_DURATION:120000} # Unit: millisecond
-
-# Production environment options
-management:
-  server:
-    address: ${ACTUATOR_HOST:localhost} # should equal 0.0.0.0 if running in container
-    port: ${ACTUATOR_PORT:8081} # Set to -1 to block access to management endpoints
-  endpoints:
-    web:
-      base-path: /actuator
-
-  tracing:
-    sampling:
-      probability: 1
-  #  otlp:
-  #    metrics:
-  #      export:
-  #        url: "https://localhost:4318/v1/metrics"
-  zipkin:
-    tracing:
-      endpoint: ${ZIPKIN_ENDPOINT:http://localhost:9411/api/v2/spans}
-      encoding: json
 
 #fluentd:
 #  host: ${FLUENTD_HOST:localhost}
 #  port: ${FLUENTD_PORT:24224}
+
+#logging:
+#  level:
+#    web: debug
+
+management:
+  zipkin:
+    tracing:
+      export:
+        enabled: false
 
 video:
   temp-dir: tmp/original-videos/

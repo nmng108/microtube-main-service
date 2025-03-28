@@ -9,6 +9,7 @@ import nmng108.microtube.mainservice.util.constant.Constants;
 import org.springframework.context.i18n.LocaleContextHolder;
 import org.springframework.util.Assert;
 
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
@@ -40,7 +41,7 @@ public class ExceptionResponse extends BaseResponse<Object> {
     public ExceptionResponse() {
         super(CustomResponseStatus.FAILED);
         this.requestId = UUID.randomUUID().toString();
-        this.timestamp = ZonedDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME);
+        this.timestamp = ZonedDateTime.now(ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE_TIME);
     }
 
     /**
@@ -182,4 +183,6 @@ public class ExceptionResponse extends BaseResponse<Object> {
                 ", status=" + status +
                 '}';
     }
+
+    public record ViolatedField(String field, String message) {}
 }

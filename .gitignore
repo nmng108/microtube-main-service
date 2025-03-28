@@ -36,4 +36,7 @@ build/
 !.env*.example*
 .env
 
-tmp**/
+### Miscellaneous
+**/tmp*/
+**/logs*/
+**/data*/

@@ -26,7 +26,7 @@ public class CreateUserDTO {
     @Size(max = 100)
     @Pattern(regexp = "^\\w+(\\.\\w+)*@\\w+(\\.\\w+)+$")
     String email;
-    @Size(min = 15, max = 20)
+    @Size(min = 12, max = 20)
     @Pattern(regexp = "^\\+\\d{1,3} \\d+")
     String phoneNumber;
 

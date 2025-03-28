@@ -8,33 +8,34 @@
 # database or a cache. For examples, see the Awesome Compose repository:
 # https://github.com/docker/awesome-compose
 services:
-  app:
+  main-service:
     build:
       context: .
 #      dockerfile:
       target: development
       args:
         GLOWROOT_COLLECTOR_ADDRESS: http://glowroot:8181
+    container_name: microtube-main-service
     volumes:
-      - server-log:/opt/app/logs
-      - ./tmp/:/opt/app/tmp
+      - ./logs/:/opt/app/logs/
     networks:
-      - default
+      - microtube-network
 #      - monitoring-network
     ports:
       - ${PUBLISHED_PORT:-8080}:8080
-      - name: actuator
-        host_ip: 127.0.0.1
-        target: 8081
-        published: '8081'
-        app_protocol: http
+#      - name: actuator
+#        host_ip: 127.0.0.1
+#        target: 8081
+#        published: ${ACTUATOR_PORT:-8081}
+#        app_protocol: http
       - name: debug-port
         host_ip: 127.0.0.1
         target: 8000
-        published: '8000'
-    depends_on:
-      mysql.db:
-        condition: service_healthy
+        published: ${DEBUG_PORT:-8000}
+        app_protocol: ws
+#    depends_on:
+#      mysql.db:
+#        condition: service_healthy
     healthcheck:
       test: sh -c "curl -f http://localhost:8080${SERVER_BASE_PATH-}/healthcheck"
       interval: 20s
@@ -52,11 +53,16 @@ services:
       ACTUATOR_PORT: 8081
 #      LOGGING_CONFIG_FILEPATH=/app/config/logback-spring.xml
       # Database configs (may put this to .env file)
-      MAIN_DB_URL: r2dbc:mysql://${MAIN_DB_ADDR:-mysql.db:3306}/${MAIN_DB_NAME:-MICROTUBE}
+      MAIN_DB_URL: ${MAIN_DB_URL:-r2dbc:mysql://mysql.db:3306/MICROTUBE}
       MAIN_DB_USERNAME: ${MAIN_DB_USERNAME:-dbuser}
       MAIN_DB_PASSWORD: ${MAIN_DB_PASSWORD:-abc123}
-      FLUENTD_HOST: fluentd
-      FLUENTD_PORT: 24224
+      OBJECT_STORE_URL: ${OBJECT_STORE_URL:-http://minio:9000}
+      OBJECT_STORE_USERNAME: ${OBJECT_STORE_USERNAME:-admin}
+      OBJECT_STORE_PASSWORD: ${OBJECT_STORE_PASSWORD:-minioadmin}
+      OBJECT_STORE_BUCKET_HLS: ${OBJECT_STORE_BUCKET_HLS:-hls}
+      OBJECT_STORE_BUCKET_USER_STORE: ${OBJECT_STORE_BUCKET_USER_STORE:-user-store}
+      FLUENTD_HOST: ${FLUENTD_HOST:-fluentd}
+      FLUENTD_PORT: ${FLUENTD_PORT:-24224}
       ZIPKIN_ENDPOINT: ${ZIPKIN_ENDPOINT:-http://zipkin:9411/api/v2/spans}
 #    logging:
 #      driver: fluentd
@@ -70,12 +76,13 @@ services:
 ##        fluentd-max-retries: 4294967295
 #        fluentd-sub-second-precision:
 
-volumes:
-  server-log:
-    driver: local
+#volumes:
+#  server-log:
+#    driver: local
 
 networks:
-  # Communicate with databases via default network
-  default:
+  # Communicate with storage services
+  microtube-network:
+    name: microtube-network
 #  monitoring-network:
 #    name: monitoring-network
