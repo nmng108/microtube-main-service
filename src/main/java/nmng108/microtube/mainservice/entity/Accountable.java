@@ -32,6 +32,8 @@ public class Accountable {
     @Column("MODIFIED_AT")
     @LastModifiedDate
     LocalDateTime modifiedAt;
+    @Column("DELETED_BY")
+    private Long deletedBy;
     @Column("DELETED_AT")
     private LocalDateTime deletedAt;
 

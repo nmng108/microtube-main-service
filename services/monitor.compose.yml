@@ -1,3 +1,4 @@
+name: microtube
 services:
   zipkin:
     image: openzipkin/zipkin

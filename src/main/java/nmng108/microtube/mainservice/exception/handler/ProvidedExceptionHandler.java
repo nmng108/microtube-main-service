@@ -11,19 +11,24 @@ import nmng108.microtube.mainservice.dto.base.BaseResponse;
 import nmng108.microtube.mainservice.dto.base.ErrorCode;
 import nmng108.microtube.mainservice.dto.base.ExceptionResponse;
 import nmng108.microtube.mainservice.exception.BadRequestException;
+import nmng108.microtube.mainservice.exception.ForbiddenException;
 import nmng108.microtube.mainservice.exception.InternalServerException;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.context.i18n.LocaleContextHolder;
+import org.springframework.core.codec.DecodingException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.security.authentication.LockedException;
+import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.support.WebExchangeBindException;
 import org.springframework.web.reactive.resource.NoResourceFoundException;
 import org.springframework.web.server.MissingRequestValueException;
+import org.springframework.web.server.ServerWebInputException;
 import org.springframework.web.server.UnsupportedMediaTypeStatusException;
 
 import java.lang.annotation.Annotation;
@@ -57,15 +62,13 @@ public class ProvidedExceptionHandler {
     }
 
     /**
-     * @param e LockedException
+     * @param e {@link AuthorizationDeniedException} | {@link LockedException}
      * @return 403 HTTP status
      */
-    @ExceptionHandler(LockedException.class)
-    @ResponseStatus(HttpStatus.FORBIDDEN)
-    public BaseResponse<?> handleAccountBeingLockedException(LockedException e) {
+    @ExceptionHandler({AuthorizationDeniedException.class, LockedException.class})
+    public ResponseEntity<ExceptionResponse> handleAccessDeniedExceptions(RuntimeException e) {
 //        this.logError(e);
-        return null;
-//        return new FailureResponse("E21", "User is locked");
+        return new ForbiddenException().toResponse();
     }
 
     /**
@@ -100,7 +103,13 @@ public class ProvidedExceptionHandler {
     public ResponseEntity<ExceptionResponse> handleUnsupportedMediaTypeStatusException(UnsupportedMediaTypeStatusException e) {
 //        log.info("({}) {}", e.getClass().getCanonicalName(), e.getMessage());
 
-        return ResponseEntity.status(e.getStatusCode()).body(new ExceptionResponse(ErrorCode.E00002, Collections.singletonList(e.getSupportedMediaTypes().stream().map(mediaType -> mediaType.getType() + "/" + mediaType.getSubtypeSuffix()).collect(Collectors.joining(",")))));
+        return ResponseEntity.status(e.getStatusCode()).body(new ExceptionResponse(ErrorCode.E00002,
+                Collections.singletonList(
+                        e.getSupportedMediaTypes().stream()
+                                .map(mediaType -> mediaType.getType() + "/" + mediaType.getSubtypeSuffix())
+                                .collect(Collectors.joining(","))
+                )
+        ));
 //        return new InvalidRequestException(e.getMessage()).toResponse();
     }
 
@@ -111,8 +120,18 @@ public class ProvidedExceptionHandler {
 //    }
 
     /**
-     * Thrown when request data is parsed by DataBinder and violates 1 or several constraints (e.g. Bean Validation).
-     *
+     * @return 400 - Bad request
+     */
+    @ExceptionHandler(ServerWebInputException.class)
+    public ResponseEntity<ExceptionResponse> handleServerWebInputException(ServerWebInputException e) {
+        if (e.getCause() instanceof DecodingException) {
+            return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002));
+        }
+
+        return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002, Collections.singletonList(e.getReason())));
+    }
+
+    /**
      * @return 400 - Bad request
      */
     @ExceptionHandler(MissingRequestValueException.class)
@@ -290,13 +309,13 @@ public class ProvidedExceptionHandler {
      * @return 500 - Internal server error
      */
     @ExceptionHandler({Exception.class})
-    public ResponseEntity<ExceptionResponse> handleCommonExceptions(Exception e) {
+    public ResponseEntity<ExceptionResponse> handleCommonExceptions(Exception e, @Value("") Boolean includesInternalExceptionMessage) {
 //        log.info("({}) {}", e.getClass().getCanonicalName(), e.getMessage());
         // trace error
         e.printStackTrace();
 
-        // WARNING: Responding with internal error message like this is discouraged and should only be conducted in dev env,
-        // so remove the message or replace it with another appropriate one in production.
-        return new InternalServerException(e.getMessage()).toResponse();
+        return Boolean.TRUE.equals(includesInternalExceptionMessage)
+                ? new InternalServerException(e.getMessage()).toResponse()
+                : new InternalServerException().toResponse();
     }
 }

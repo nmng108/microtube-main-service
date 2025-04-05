@@ -1,10 +1,8 @@
 package nmng108.microtube.mainservice.dto.channel.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 import lombok.AccessLevel;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -12,15 +10,15 @@ import lombok.ToString;
 import lombok.experimental.FieldDefaults;
 import nmng108.microtube.mainservice.entity.Channel;
 
+import java.util.Optional;
+
 @Getter
 @EqualsAndHashCode
 @ToString
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class CreateChannelDTO {
-//    @NotNull
-    @Min(0)
-    @Schema(description = "Dev plan: remove this prop due to an user can only create a channel for his/her own")
-    long userId;
+    @NotBlank
     @Size(min = 3, max = 25)
     String name;
     @Size(min = 3, max = 30)
@@ -32,10 +30,9 @@ public class CreateChannelDTO {
 
     public Channel toChannel() {
         return Channel.builder()
-                .userId(userId)
-                .name(name)
-                .pathName(pathName)
-                .description(description)
+                .name(name.strip())
+                .pathName(Optional.ofNullable(pathName).map(String::strip).orElse(null))
+                .description(Optional.ofNullable(description).map(String::strip).orElse(null))
                 .build();
     }
 }

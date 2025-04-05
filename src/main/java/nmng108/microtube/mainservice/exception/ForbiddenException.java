@@ -13,17 +13,17 @@ import java.util.Map;
 @Getter
 public class ForbiddenException extends CustomHttpException {
     private static final HttpStatus DEFAULT_HTTP_STATUS = HttpStatus.FORBIDDEN;
-    private static final ErrorCode DEFAULT_ERROR_CODE = ErrorCode.E00002; // change this
+    private static final ErrorCode DEFAULT_ERROR_CODE = ErrorCode.E00011;
 
     /**
-     * Apply the default error code: {@link ErrorCode#E00002}.
+     * Apply the default error code: {@link ErrorCode#E00011}.
      */
     public ForbiddenException() {
         this(DEFAULT_ERROR_CODE);
     }
 
     /**
-     * Apply the default error code: {@link ErrorCode#E00002}.
+     * Apply the default error code: {@link ErrorCode#E00011}.
      */
     public ForbiddenException(String message) {
         this(DEFAULT_ERROR_CODE, message);

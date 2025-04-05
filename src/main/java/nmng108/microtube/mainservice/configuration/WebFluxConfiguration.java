@@ -1,9 +1,7 @@
 package nmng108.microtube.mainservice.configuration;
 
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.codec.ServerCodecConfigurer;
-import org.springframework.http.codec.multipart.DefaultPartHttpMessageReader;
-import org.springframework.http.codec.multipart.MultipartHttpMessageReader;
+import org.springframework.format.FormatterRegistry;
 import org.springframework.web.reactive.config.CorsRegistry;
 import org.springframework.web.reactive.config.WebFluxConfigurer;
 
@@ -16,10 +14,16 @@ public class WebFluxConfiguration implements WebFluxConfigurer {
         registry.addMapping("/**")
                 .allowedOrigins("*")
 //                .allowCredentials(true)
+                .allowedMethods("*")
                 .allowedHeaders("*");
     }
 
-//    @Override
+    @Override
+    public void addFormatters(FormatterRegistry registry) {
+        WebFluxConfigurer.super.addFormatters(registry);
+    }
+
+    //    @Override
 //    public void configureHttpMessageCodecs(ServerCodecConfigurer configurer) {
 //        var partReader = new DefaultPartHttpMessageReader();
 //

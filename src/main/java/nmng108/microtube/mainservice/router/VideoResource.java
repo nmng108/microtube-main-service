@@ -14,9 +14,7 @@ import nmng108.microtube.mainservice.util.constant.Routes;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
@@ -43,13 +41,13 @@ public class VideoResource {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Mono<BaseResponse<VideoDTO>>> getById(@PathVariable long id) {
+    public ResponseEntity<Mono<BaseResponse<VideoDTO>>> getById(@PathVariable("id") String id) {
         return ResponseEntity.ok(videoService.getById(id));
     }
 
     @PostMapping
     public Mono<ResponseEntity<BaseResponse<VideoDTO>>> create(@RequestBody @Valid CreateVideoDTO dto) {
-        return videoService.create(dto).log()
+        return videoService.create(dto)
                 .map((res) -> {
                     long id = res.getData().getId();
 
@@ -59,7 +57,7 @@ public class VideoResource {
 
     @Operation(summary = "Fetch master/index file of specified video")
     @GetMapping(value = "/{id}/master.m3u8", produces = "application/vnd.apple.mpegurl"/*MediaType.APPLICATION_OCTET_STREAM_VALUE*/)
-    public ResponseEntity<Mono<Resource>> getMasterFile(@PathVariable("id") long id) {
+    public ResponseEntity<Mono<Resource>> getMasterFile(@PathVariable("id") String id) {
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_TYPE, "application/vnd.apple.mpegurl")
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=master.m3u8")
@@ -70,7 +68,7 @@ public class VideoResource {
     @Operation(summary = "Fetch segment file of specified video")
     @GetMapping(value = "/{id}/{resolution:^\\d{3,4}p$}/{filename:^\\w+\\.\\w{2,4}$}", produces = "application/vnd.apple.mpegurl"/*MediaType.APPLICATION_OCTET_STREAM_VALUE*/)
     public Mono<ResponseEntity<Resource>> getMasterFile(
-            @PathVariable("id") long id,
+            @PathVariable("id") String id,
             @PathVariable("resolution") String resolution,
             @PathVariable("filename") @Pattern(regexp = "^((playlist\\.m3u8)|(\\w+\\.ts))$") String filename
     ) {
@@ -88,12 +86,12 @@ public class VideoResource {
 //    }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Mono<BaseResponse<VideoDTO>>> updateInfo(@PathVariable("id") long id, @RequestBody @Valid UpdateVideoDTO dto) {
+    public ResponseEntity<Mono<BaseResponse<VideoDTO>>> updateInfo(@PathVariable("id") String id, @RequestBody @Valid UpdateVideoDTO dto) {
         return ResponseEntity.ok(videoService.updateInfo(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Mono<BaseResponse<Void>>> delete(@PathVariable("id") long id) {
-        return ResponseEntity.ok(videoService.delete(id));
+    public ResponseEntity<Mono<BaseResponse<Void>>> delete(@PathVariable("id") String id) {
+        return ResponseEntity.accepted().body(videoService.delete(id));
     }
 }

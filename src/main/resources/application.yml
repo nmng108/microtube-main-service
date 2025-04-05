@@ -4,22 +4,17 @@ server:
 api:
   version: v1
   base-path: "#{'${spring.webflux.base-path:}'.length > 0 ? '/${spring.webflux.base-path:}' : ''}/api#{'${api.version:}'.length > 0 ? '/${api.version:}' : ''}"
-
 spring:
   main:
     web-application-type: reactive
   application:
-    name: main-service
+    name: ${APP_NAME:main-service}
   webflux:
     base-path: ${SERVER_BASE_PATH:}
 #  servlet:
 #    multipart:
 #      max-file-size: 500MB
 #      max-request-size: 100MB
-  r2dbc:
-    url: ${MAIN_DB_URL:r2dbc:mysql://localhost:3306/MICROTUBE}
-    username: ${MAIN_DB_USERNAME:dbuser}
-    password: ${MAIN_DB_PASSWORD:abc123}
 
   messages: # Alternative config option: create a bean of ReloadableResourceBundleMessageSource
     basename: ${MESSAGES_BASENAME:messages,custom-response-status,errors,error-codes} # name prefix for the file containing message props. Format: config.i18n.messages (dot-separated path names)
@@ -27,6 +22,10 @@ spring:
     encoding: UTF-8
 
 datasource:
+  main-database:
+    url: ${MAIN_DB_URL:r2dbc:mysql://localhost:3306/MICROTUBE}
+    username: ${MAIN_DB_USERNAME:dbuser}
+    password: ${MAIN_DB_PASSWORD:abc123}
   object-store:
     url: ${OBJECT_STORE_URL:http://127.0.0.1:9000}
     username: ${OBJECT_STORE_USERNAME:admin}
@@ -36,6 +35,7 @@ datasource:
       user-store: ${OBJECT_STORE_BUCKET_USER_STORE:user-store}
 
 application:
+  include-internal-exception-message: ${INCLUDE_INTERNAL_EXCEPTION_MESSAGE:true}
   jwt:
     secret: ${JWT_SECRET:asdfg12345gyugyguggi67fy12ijpcsjop4904wojiUFHAKFHjoihouhu}
     usage-duration: ${JWT_USAGE_DURATION:120000} # Unit: millisecond
@@ -60,12 +60,16 @@ springdoc:
 #  level:
 #    web: debug
 
+rest-service:
+  auth:
+    name: PROCESSOR-SERVICE
+    api:
+      fetch-user-info:
+        method: GET
+        path: /api/v1/auth/user
+
 management:
   zipkin:
     tracing:
       export:
         enabled: false
-
-video:
-  temp-dir: tmp/original-videos/
-  result-dir: tmp/result-videos/

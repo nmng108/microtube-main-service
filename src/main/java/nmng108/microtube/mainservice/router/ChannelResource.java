@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import nmng108.microtube.mainservice.dto.base.BaseResponse;
+import nmng108.microtube.mainservice.dto.base.PagingRequest;
 import nmng108.microtube.mainservice.dto.channel.request.CreateChannelDTO;
 import nmng108.microtube.mainservice.dto.channel.request.UpdateChannelDTO;
 import nmng108.microtube.mainservice.dto.channel.response.ChannelDTO;
@@ -31,12 +32,12 @@ public class ChannelResource {
     }
 
     @GetMapping
-    public ResponseEntity<Mono<BaseResponse<List<ChannelDTO>>>> getChannels() {
-        return ResponseEntity.ok(channelService.getAllChannels());
+    public ResponseEntity<Mono<BaseResponse<List<ChannelDTO>>>> getChannels(PagingRequest pagingRequest) {
+        return ResponseEntity.ok(channelService.getAllChannels(pagingRequest));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Mono<BaseResponse<ChannelDTO>>> getChannelByIdOrUsername(@PathVariable("id") String id) {
+    public ResponseEntity<Mono<BaseResponse<ChannelDTO>>> getChannelByIdOrPathname(@PathVariable("id") String id) {
         return ResponseEntity.ok(channelService.getChannelByIdOrPathName(id));
     }
 
@@ -51,12 +52,12 @@ public class ChannelResource {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Mono<BaseResponse<ChannelDTO>>> updateChannel(@PathVariable("id") String id, @RequestBody @Valid UpdateChannelDTO dto) {
-        return ResponseEntity.ok(channelService.updateChannelInfo(id, dto));
+    public Mono<ResponseEntity<BaseResponse<ChannelDTO>>> updateChannel(@PathVariable("id") String id, @RequestBody @Valid UpdateChannelDTO dto) {
+        return channelService.updateChannelInfo(id, dto).map(ResponseEntity::ok);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Mono<BaseResponse<Void>>> deleteChannel(@PathVariable("id") String id) {
-        return ResponseEntity.ok(channelService.deleteChannel(id));
+    public Mono<ResponseEntity<BaseResponse<Void>>> deleteChannel(@PathVariable("id") String id) {
+        return channelService.deleteChannel(id).map(ResponseEntity.accepted()::body);
     }
 }

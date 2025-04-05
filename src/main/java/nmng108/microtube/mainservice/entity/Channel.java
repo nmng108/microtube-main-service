@@ -23,7 +23,7 @@ public class Channel extends Accountable {
     long id;
     @Column("NAME")
     String name;
-    @Column("PATH_NAME")
+    @Column("PATHNAME")
     String pathName;
     @Column("DESCRIPTION")
     String description;

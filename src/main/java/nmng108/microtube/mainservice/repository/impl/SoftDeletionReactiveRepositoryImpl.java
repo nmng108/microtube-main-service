@@ -27,16 +27,19 @@ import org.springframework.util.Assert;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.function.Function;
 
-@FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
+@FieldDefaults(level = AccessLevel.PRIVATE)
 public class SoftDeletionReactiveRepositoryImpl<T extends Accountable, ID> extends SimpleR2dbcRepository<T, ID> implements SoftDeletionReactiveRepository<T, ID> {
-    RelationalEntityInformation<T, ID> entity;
-    R2dbcEntityOperations entityOperations;
-    Lazy<RelationalPersistentProperty> idProperty;
-    Lazy<RelationalPersistentProperty> deletedAtProperty;
+    final RelationalEntityInformation<T, ID> entity;
+    final R2dbcEntityOperations entityOperations;
+    final Lazy<RelationalPersistentProperty> idProperty;
+    final Lazy<RelationalPersistentProperty> deletedByProperty;
+    final Lazy<RelationalPersistentProperty> deletedAtProperty;
+//    ReactiveAuditorAware<Long> auditorAware; // TODO: find out solutions to inject & use this bean in delete() methods
 //    RelationalExampleMapper exampleMapper;
 
     public SoftDeletionReactiveRepositoryImpl(RelationalEntityInformation<T, ID> entity, R2dbcEntityOperations entityOperations, R2dbcConverter converter) {
@@ -44,12 +47,18 @@ public class SoftDeletionReactiveRepositoryImpl<T extends Accountable, ID> exten
 
         this.entity = entity;
         this.entityOperations = entityOperations;
-        this.idProperty = Lazy.of(() -> {
-            return (RelationalPersistentProperty) ((RelationalPersistentEntity) converter.getMappingContext().getRequiredPersistentEntity(this.entity.getJavaType())).getRequiredIdProperty();
-        });
-        this.deletedAtProperty = Lazy.of(() -> {
-            return (RelationalPersistentProperty) ((RelationalPersistentEntity) converter.getMappingContext().getRequiredPersistentEntity(this.entity.getJavaType())).getPersistentProperty("deletedAt");
-        });
+        this.idProperty = Lazy.of(() ->
+                (RelationalPersistentProperty) ((RelationalPersistentEntity) converter.getMappingContext().getRequiredPersistentEntity(this.entity.getJavaType()))
+                        .getRequiredIdProperty()
+        );
+        this.deletedByProperty = Lazy.of(() ->
+                (RelationalPersistentProperty) ((RelationalPersistentEntity) converter.getMappingContext().getRequiredPersistentEntity(this.entity.getJavaType()))
+                        .getPersistentProperty("deletedBy")
+        );
+        this.deletedAtProperty = Lazy.of(() ->
+                (RelationalPersistentProperty) ((RelationalPersistentEntity) converter.getMappingContext().getRequiredPersistentEntity(this.entity.getJavaType()))
+                        .getPersistentProperty("deletedAt")
+        );
 //        this.exampleMapper = new RelationalExampleMapper(converter.getMappingContext());
     }
 
@@ -58,12 +67,18 @@ public class SoftDeletionReactiveRepositoryImpl<T extends Accountable, ID> exten
 
         this.entity = entity;
         this.entityOperations = new R2dbcEntityTemplate(databaseClient, accessStrategy);
-        this.idProperty = Lazy.of(() -> {
-            return (RelationalPersistentProperty) ((RelationalPersistentEntity) converter.getMappingContext().getRequiredPersistentEntity(this.entity.getJavaType())).getRequiredIdProperty();
-        });
-        this.deletedAtProperty = Lazy.of(() -> {
-            return (RelationalPersistentProperty) ((RelationalPersistentEntity) converter.getMappingContext().getRequiredPersistentEntity(this.entity.getJavaType())).getPersistentProperty("deletedAt");
-        });
+        this.idProperty = Lazy.of(() ->
+                (RelationalPersistentProperty) ((RelationalPersistentEntity) converter.getMappingContext().getRequiredPersistentEntity(this.entity.getJavaType()))
+                        .getRequiredIdProperty()
+        );
+        this.deletedByProperty = Lazy.of(() ->
+                (RelationalPersistentProperty) ((RelationalPersistentEntity) converter.getMappingContext().getRequiredPersistentEntity(this.entity.getJavaType()))
+                        .getPersistentProperty("deletedBy")
+        );
+        this.deletedAtProperty = Lazy.of(() ->
+                (RelationalPersistentProperty) ((RelationalPersistentEntity) converter.getMappingContext().getRequiredPersistentEntity(this.entity.getJavaType()))
+                        .getPersistentProperty("deletedAt")
+        );
 //        this.exampleMapper = new RelationalExampleMapper(converter.getMappingContext());
     }
 
@@ -139,7 +154,14 @@ public class SoftDeletionReactiveRepositoryImpl<T extends Accountable, ID> exten
     public Mono<Void> deleteById(ID id) {
         Assert.notNull(id, "Id must not be null");
 
-        return this.entityOperations.update(this.getIdQuery(id), Update.update("DELETED_AT", LocalDateTime.now()), this.entity.getJavaType()).then();
+        Update updateStatement = Update.update(getDeletedAtProperty().getName(), ZonedDateTime.now(ZoneOffset.UTC));
+
+        return /*auditorAware.getCurrentAuditor()
+                .map((userId) -> updateStatement.set(getDeletedByProperty().getName(), userId))*/
+//                .switchIfEmpty(Mono.just(updateStatement))
+                Mono.just(updateStatement)
+                        .flatMap((finalUpdateStatement) -> this.entityOperations.update(this.getIdQuery(id), finalUpdateStatement, this.entity.getJavaType()))
+                        .then();
     }
 
     @Override
@@ -147,9 +169,15 @@ public class SoftDeletionReactiveRepositoryImpl<T extends Accountable, ID> exten
     public Mono<Void> deleteById(Publisher<ID> idPublisher) {
         Assert.notNull(idPublisher, "The Id Publisher must not be null");
 
+        Update updateStatement = Update.update(getDeletedAtProperty().getName(), ZonedDateTime.now(ZoneOffset.UTC));
+        Mono<Update> finalUpdateStatementMono = Mono.just(updateStatement)/*auditorAware.getCurrentAuditor()
+                .map((userId) -> updateStatement.set(getDeletedByProperty().getName(), userId))
+                .switchIfEmpty(Mono.just(updateStatement))*/;
+
         return Flux.from(idPublisher).buffer()
                 .filter((ids) -> !ids.isEmpty())
-                .flatMap((ids) -> this.entityOperations.update(this.getIdsQuery(ids), Update.update("DELETED_AT", LocalDateTime.now()), this.entity.getJavaType()))
+                .zipWith(finalUpdateStatementMono)
+                .flatMap((tuple2) -> this.entityOperations.update(this.getIdsQuery(tuple2.getT1()), tuple2.getT2(), this.entity.getJavaType()))
                 .then();
     }
 
@@ -220,6 +248,10 @@ public class SoftDeletionReactiveRepositoryImpl<T extends Accountable, ID> exten
 
     private RelationalPersistentProperty getIdProperty() {
         return this.idProperty.get();
+    }
+
+    private RelationalPersistentProperty getDeletedByProperty() {
+        return this.deletedByProperty.get();
     }
 
     private RelationalPersistentProperty getDeletedAtProperty() {

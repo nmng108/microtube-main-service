@@ -40,3 +40,4 @@ build/
 **/tmp*/
 **/logs*/
 **/data*/
+!**/src/**/data*/

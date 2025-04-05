@@ -4,21 +4,19 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import nmng108.microtube.mainservice.dto.auth.LoginRequest;
-import nmng108.microtube.mainservice.repository.impl.SoftDeletionReactiveRepositoryImpl;
 import org.springframework.beans.PropertyEditorRegistrar;
 import org.springframework.beans.propertyeditors.StringTrimmerEditor;
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.support.ReloadableResourceBundleMessageSource;
-import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.beans.PropertyEditor;
 import java.beans.PropertyEditorSupport;
 
 @Configuration
-@EnableR2dbcRepositories(basePackages = {"nmng108.microtube.mainservice.repository"}, repositoryBaseClass = SoftDeletionReactiveRepositoryImpl.class)
-public class BeanConfig {
+public class BeanConfiguration {
     @Bean
     public JsonMapper jsonMapper() {
         return JsonMapper.builder()
@@ -28,8 +26,15 @@ public class BeanConfig {
     }
 
     @Bean
+    @LoadBalanced
     public WebClient webClient(WebClient.Builder builder) {
         return builder.build();
+    }
+
+    @Bean
+    @LoadBalanced
+    public WebClient.Builder webClientBuilder() {
+        return WebClient.builder();
     }
 
     /**
@@ -39,9 +44,11 @@ public class BeanConfig {
     @Bean
     public ReloadableResourceBundleMessageSource messageSource() {
         ReloadableResourceBundleMessageSource messageSource = new ReloadableResourceBundleMessageSource();
+
         messageSource.setBasenames("classpath:messages", "classpath:custom-response-status", "classpath:errors", "classpath:error-codes");
         messageSource.setDefaultEncoding("UTF-8");
         messageSource.setCacheSeconds(3600); // Cache for an hour
+
         return messageSource;
     }
 
@@ -64,6 +71,7 @@ public class BeanConfig {
                 super.setAsText(text);
             }
         };
+
         return (registry) -> {
             registry.registerCustomEditor(LoginRequest.class, new StringTrimmerEditor(false));
         };

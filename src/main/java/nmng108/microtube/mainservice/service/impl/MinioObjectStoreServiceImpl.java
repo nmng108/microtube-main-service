@@ -2,6 +2,9 @@ package nmng108.microtube.mainservice.service.impl;
 
 import io.minio.*;
 import io.minio.errors.*;
+import io.minio.messages.DeleteError;
+import io.minio.messages.DeleteObject;
+import io.minio.messages.Item;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import nmng108.microtube.mainservice.service.ObjectStoreService;
@@ -14,6 +17,9 @@ import java.nio.file.Files;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 @Service
@@ -25,6 +31,27 @@ public class MinioObjectStoreServiceImpl implements ObjectStoreService {
     public MinioObjectStoreServiceImpl(@Qualifier("minioClient") MinioClient minioClient, @Qualifier("minioAsyncClient") MinioAsyncClient minioAsyncClient) {
         this.minioClient = minioClient;
         this.minioAsyncClient = minioAsyncClient;
+    }
+
+    @Override
+    public Iterable<Result<Item>> listObjectsRecursive(String bucketName, String prefix) {
+            return minioClient.listObjects(ListObjectsArgs.builder().bucket(bucketName).prefix(prefix).recursive(true).build());
+    }
+
+    @Override
+    public Iterable<Result<Item>> listObjects(String bucketName, String prefix, boolean recursive) {
+        return minioClient.listObjects(ListObjectsArgs.builder().bucket(bucketName).prefix(prefix).recursive(recursive).build());
+    }
+
+    @Override
+    public GetObjectResponse getObject(String bucketName, String objectName) {
+        try {
+            return minioClient.getObject(GetObjectArgs.builder().bucket(bucketName).object(objectName).build());
+        } catch (ServerException | InsufficientDataException | ErrorResponseException | IOException |
+                 NoSuchAlgorithmException | InvalidKeyException | InvalidResponseException | XmlParserException |
+                 InternalException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
@@ -113,17 +140,6 @@ public class MinioObjectStoreServiceImpl implements ObjectStoreService {
     }
 
     @Override
-    public GetObjectResponse getObject(String bucketName, String objectName) {
-        try {
-            return minioClient.getObject(GetObjectArgs.builder().bucket(bucketName).object(objectName).build());
-        } catch (ServerException | InsufficientDataException | ErrorResponseException | IOException |
-                 NoSuchAlgorithmException | InvalidKeyException | InvalidResponseException | XmlParserException |
-                 InternalException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
     public void removeObject(String bucketName, String objectName) {
         try {
             minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucketName).object(objectName).build());
@@ -132,6 +148,25 @@ public class MinioObjectStoreServiceImpl implements ObjectStoreService {
                  InternalException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    @Override
+    public Iterable<Result<DeleteError>> removeObjectsWithPrefix(String bucketName, String prefix) {
+        List<DeleteObject> deleteObjects = new LinkedList<>();
+
+        listObjectsRecursive(bucketName, prefix).forEach((o) -> {
+            try {
+                var item = o.get();
+
+                deleteObjects.add(new DeleteObject(item.objectName()));
+            } catch (ErrorResponseException | InsufficientDataException | InternalException | InvalidKeyException |
+                     InvalidResponseException | IOException | NoSuchAlgorithmException | ServerException |
+                     XmlParserException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        return minioAsyncClient.removeObjects(RemoveObjectsArgs.builder().bucket(bucketName).objects(deleteObjects).build());
     }
 
     @Override

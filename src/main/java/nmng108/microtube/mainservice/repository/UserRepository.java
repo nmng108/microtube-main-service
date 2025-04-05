@@ -2,12 +2,10 @@ package nmng108.microtube.mainservice.repository;
 
 import nmng108.microtube.mainservice.entity.User;
 import org.springframework.data.r2dbc.repository.Query;
+import org.springframework.data.r2dbc.repository.R2dbcRepository;
 import reactor.core.publisher.Mono;
 
-public interface UserRepository extends SoftDeletionReactiveRepository<User, Long> {
-//    @Query("SELECT EXISTS(SELECT 0 FROM USER u WHERE u.ID = :id AND DELETED_AT IS NULL)")
-//    Mono<Boolean> existsById(Long id);
-
+public interface UserRepository extends R2dbcRepository<User, Long> {
     Mono<User> findByUsername(String username);
 
     @Query("SELECT u.USERNAME FROM USER u WHERE u.ID = :id")
