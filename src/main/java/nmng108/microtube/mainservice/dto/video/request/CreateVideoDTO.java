@@ -10,7 +10,7 @@ import lombok.Getter;
 import lombok.ToString;
 import lombok.experimental.FieldDefaults;
 import nmng108.microtube.mainservice.entity.Video;
-import nmng108.microtube.mainservice.util.converter.ChannelVisibilityConverters;
+import nmng108.microtube.mainservice.util.converter.VideoVisibilityConverters;
 
 @Getter
 @EqualsAndHashCode
@@ -19,19 +19,19 @@ import nmng108.microtube.mainservice.util.converter.ChannelVisibilityConverters;
 public class CreateVideoDTO {
     @NotBlank
     @Size(max = 255)
-    String name;
+    String title;
     @Size(max = 3000)
     String description;
     @NotNull
-    @JsonDeserialize(using = ChannelVisibilityConverters.VisibilityDeserializer.class)
+    @JsonDeserialize(using = VideoVisibilityConverters.Deserializer.class)
     Video.Visibility visibility;
     boolean allowsComment;
 
     public Video toVideo() {
         return Video.builder()
-                .name(name.strip())
+                .title(title.strip())
                 .description(description.strip())
-                .visibility(visibility.number)
+                .visibility(visibility)
                 .allowsComment(allowsComment)
                 .build();
     }

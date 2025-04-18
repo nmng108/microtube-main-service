@@ -7,18 +7,23 @@ import lombok.extern.slf4j.Slf4j;
 import nmng108.microtube.mainservice.dto.auth.UserDetailsDTO;
 import nmng108.microtube.mainservice.dto.base.BaseResponse;
 import nmng108.microtube.mainservice.dto.base.PagingRequest;
+import nmng108.microtube.mainservice.dto.base.PagingResponse;
+import nmng108.microtube.mainservice.dto.channel.request.ChannelAction;
 import nmng108.microtube.mainservice.dto.channel.request.CreateChannelDTO;
 import nmng108.microtube.mainservice.dto.channel.request.UpdateChannelDTO;
 import nmng108.microtube.mainservice.dto.channel.response.ChannelDTO;
 import nmng108.microtube.mainservice.entity.Channel;
-import nmng108.microtube.mainservice.entity.Video;
 import nmng108.microtube.mainservice.exception.BadRequestException;
 import nmng108.microtube.mainservice.exception.UnauthorizedException;
 import nmng108.microtube.mainservice.repository.ChannelRepository;
 import nmng108.microtube.mainservice.repository.VideoRepository;
+import nmng108.microtube.mainservice.repository.projection.ChannelWithPersonalSubscription;
 import nmng108.microtube.mainservice.service.ChannelService;
+import nmng108.microtube.mainservice.service.ObjectStoreService;
 import nmng108.microtube.mainservice.service.UserService;
 import nmng108.microtube.mainservice.service.VideoService;
+import org.springframework.data.domain.Pageable;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -28,8 +33,6 @@ import reactor.core.scheduler.Schedulers;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -38,21 +41,29 @@ import java.util.Optional;
 @RequiredArgsConstructor
 @Slf4j
 public class ChannelServiceImpl implements ChannelService {
+    ObjectStoreService objectStoreService;
     UserService userService;
     ChannelRepository channelRepository;
     VideoService videoService;
     VideoRepository videoRepository;
 
     @Override
-    public Mono<BaseResponse<List<ChannelDTO>>> getAllChannels(PagingRequest pagingRequest) {
-        return channelRepository.findAll()
-                .mapNotNull(ChannelDTO::new)
+    public Mono<BaseResponse<PagingResponse<ChannelDTO>>> getAll(PagingRequest pagingRequest, @Nullable String name) {
+        Pageable pageable = pagingRequest.toPageable();
+
+        return userService.getCurrentUser()
+                .flatMapMany((u) -> channelRepository.searchByNameOrPathname(name, u.getId(), pageable.getPageSize(), pageable.getOffset()))
+                .switchIfEmpty(channelRepository.searchByNameOrPathname(name, null, pageable.getPageSize(), pageable.getOffset()))
+                .mapNotNull((c) -> new ChannelDTO(c, objectStoreService.getDownloadUrl(c.getAvatar())))
                 .collectList()
+                .zipWith(channelRepository.countSearchByNameOrPathname(name))
+                .map((tuple2) -> new PagingResponse<>(pagingRequest, tuple2.getT2(), tuple2.getT1()))
+                .switchIfEmpty(Mono.just(new PagingResponse<>()))
                 .map(BaseResponse::succeeded);
     }
 
     @Override
-    public Mono<BaseResponse<ChannelDTO>> getChannelByIdOrPathName(String identifiable) {
+    public Mono<BaseResponse<ChannelDTO>> getByIdOrPathName(String identifiable) {
 //        return Mono.just(0) // version 1
 //                .flatMap((ignored) -> {
 //                    System.out.println(ignored);
@@ -65,12 +76,13 @@ public class ChannelServiceImpl implements ChannelService {
 //                    }
 //                })
         return retrieveChannel(identifiable)
-                .mapNotNull((c) -> BaseResponse.succeeded(new ChannelDTO(c)))
+                .mapNotNull((c) -> new ChannelDTO(c, objectStoreService.getDownloadUrl(c.getAvatar())))
+                .mapNotNull(BaseResponse::succeeded)
                 .switchIfEmpty(Mono.error(new NoResourceFoundException("")));
     }
 
     @Override
-    public Mono<BaseResponse<ChannelDTO>> createChannelInfo(CreateChannelDTO dto) {
+    public Mono<BaseResponse<ChannelDTO>> create(CreateChannelDTO dto) {
         return userService.getCurrentUser().switchIfEmpty(Mono.error(UnauthorizedException::new))
                 // version 1
 //                .publishOn(Schedulers.boundedElastic())
@@ -100,36 +112,38 @@ public class ChannelServiceImpl implements ChannelService {
 
                     c.setUserId(user.getId());
 
-                    if (!StringUtils.hasText(c.getPathName())) {
-                        c.setPathName(user.getUsername());
+                    if (!StringUtils.hasText(c.getPathname())) {
+                        c.setPathname(user.getUsername());
                     }
 
                     return c;
                 })
-                .filterWhen((c) -> channelRepository.findByPathName(c.getPathName()).map((_) -> false).switchIfEmpty(Mono.just(true)))
+                .filterWhen((c) -> channelRepository.findByPathname(c.getPathname()).map((_) -> false).switchIfEmpty(Mono.just(true)))
                 .switchIfEmpty(Mono.error(new BadRequestException("Cannot create new channel. Pathname exists.")))
                 .flatMap(channelRepository::save)
-                .mapNotNull((c) -> BaseResponse.succeeded(new ChannelDTO(c)));
+                .mapNotNull((c) -> new ChannelDTO(c, objectStoreService.getDownloadUrl(c.getAvatar())))
+                .mapNotNull(BaseResponse::succeeded);
     }
 
     @Override
-    public Mono<BaseResponse<ChannelDTO>> updateChannelInfo(String identifiable, UpdateChannelDTO dto) {
+    public Mono<BaseResponse<ChannelDTO>> update(String identifiable, UpdateChannelDTO dto) {
         return retrieveChannel(identifiable)
                 .flatMap((c) -> {
                     Optional.ofNullable(dto.getName()).map(String::strip).filter(StringUtils::hasText).ifPresent(c::setName);
-                    Optional.ofNullable(dto.getPathname()).map(String::strip).filter(StringUtils::hasText).ifPresent(c::setPathName); // TODO: check if this has existed
+                    Optional.ofNullable(dto.getPathname()).map(String::strip).filter(StringUtils::hasText).ifPresent(c::setPathname); // TODO: check if this has existed
                     Optional.ofNullable(dto.getDescription()).map(String::strip).filter(StringUtils::hasText).ifPresent(c::setDescription);
 
                     return channelRepository.save(c);
                 })
-                .mapNotNull((c) -> BaseResponse.succeeded(new ChannelDTO(c)));
+                .mapNotNull((c) -> new ChannelDTO(c, objectStoreService.getDownloadUrl(c.getAvatar())))
+                .mapNotNull(BaseResponse::succeeded);
     }
 
     @Override
-    public Mono<BaseResponse<Void>> deleteChannel(String identifiable) {
+    public Mono<BaseResponse<Void>> delete(String identifiable) {
         return retrieveChannel(identifiable)
                 .switchIfEmpty(Mono.error(new NoResourceFoundException("")))
-                .doOnNext(c -> log.info("found channel: ID={}, pathname={}, name={}", c.getId(), c.getPathName(), c.getName()))
+                .doOnNext(c -> log.info("found channel: ID={}, pathname={}, name={}", c.getId(), c.getPathname(), c.getName()))
                 .flatMap((c) -> userService.getCurrentUser()
                         .flatMap((user) -> channelRepository.softDeleteById(c.getId(), user.getId(), ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime()))
                         .thenReturn(c))
@@ -146,7 +160,7 @@ public class ChannelServiceImpl implements ChannelService {
                             .flatMap((v) -> videoService.delete(v, u))
                             .then() // video deletion tasks are considered to be successful if there's no emitted error
                             .then(Mono.fromRunnable(() -> channelRepository.delete(c).subscribeOn(Schedulers.boundedElastic()).subscribe()))
-                            .doOnSuccess((_) -> log.info("Deleted channel - ID={}, pathname={}", c.getId(), c.getPathName()))
+                            .doOnSuccess((_) -> log.info("Deleted channel - ID={}, pathname={}", c.getId(), c.getPathname()))
                             .doOnError((_) -> log.error("Cannot delete channel with ID={}", c.getId()))
                             .subscribe();
                 })
@@ -154,9 +168,31 @@ public class ChannelServiceImpl implements ChannelService {
                 ;
     }
 
-    public Mono<Channel> retrieveChannel(String identifiable) {
-        return Mono.fromCallable(() -> Long.parseLong(identifiable))
-                .flatMap(channelRepository::findById)
-                .onErrorResume(NumberFormatException.class, (error) -> channelRepository.findByPathName(identifiable));
+    @Override
+    @Transactional
+    public Mono<BaseResponse<Void>> doAction(String identifiable, ChannelAction action) {
+        Mono<UserDetailsDTO> userMono = userService.getCurrentUser().switchIfEmpty(Mono.error(UnauthorizedException::new));
+        Mono<ChannelWithPersonalSubscription> channelMono = retrieveChannel(identifiable).switchIfEmpty(Mono.error(() -> new NoResourceFoundException("")));
+
+        return Mono.zip(userMono, channelMono)
+                .flatMap((tuple2) -> action == ChannelAction.SUBSCRIBE
+                        ? channelRepository.addSubscription(tuple2.getT2().getId(), tuple2.getT1().getId())
+                        .doOnError((e) -> e.printStackTrace())
+                        .then(channelRepository.increaseSubscription(tuple2.getT2().getId()))
+                        : channelRepository.removeSubscription(tuple2.getT2().getId(), tuple2.getT1().getId())
+                        .then(channelRepository.decreaseSubscription(tuple2.getT2().getId()))
+                )
+                .doOnNext((result) -> log.info("result: " + result))
+                .thenReturn(BaseResponse.succeeded());
+    }
+
+    public Mono<ChannelWithPersonalSubscription> retrieveChannel(String identifiable) {
+        return userService.getCurrentUser()
+                .flatMap((u) -> Mono.fromCallable(() -> Long.parseLong(identifiable))
+                        .flatMap((id) -> channelRepository.findByIdOrPathname(id, u.getId()).doOnNext((c) -> log.info(c.toString() + " " + u)))
+                        .onErrorResume(NumberFormatException.class, (error) -> channelRepository.findByPathname(identifiable, u.getId())))
+                .switchIfEmpty(Mono.fromCallable(() -> Long.parseLong(identifiable))
+                        .flatMap((id) -> channelRepository.findByIdOrPathname(id, null).doOnNext((c) -> log.info(c.toString())))
+                        .onErrorResume(NumberFormatException.class, (error) -> channelRepository.findByPathname(identifiable, null)));
     }
 }

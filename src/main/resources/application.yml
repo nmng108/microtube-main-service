@@ -3,7 +3,9 @@ server:
 
 api:
   version: v1
-  base-path: "#{'${spring.webflux.base-path:}'.length > 0 ? '/${spring.webflux.base-path:}' : ''}/api#{'${api.version:}'.length > 0 ? '/${api.version:}' : ''}"
+  base-path: "/api#{'${api.version:}'.length > 0 ? '/${api.version:}' : ''}"
+  server-base-path: "${spring.webflux.base-path:}${api.base-path:}"
+
 spring:
   main:
     web-application-type: reactive
@@ -31,8 +33,10 @@ datasource:
     username: ${OBJECT_STORE_USERNAME:admin}
     password: ${OBJECT_STORE_PASSWORD:minioadmin}
     bucket:
+      temporary: ${OBJECT_STORE_BUCKET_TEMP:temporary}
       hls: ${OBJECT_STORE_BUCKET_HLS:hls}
-      user-store: ${OBJECT_STORE_BUCKET_USER_STORE:user-store}
+      avatar: ${OBJECT_STORE_BUCKET_AVATAR:avatar}
+      thumbnail: ${OBJECT_STORE_BUCKET_THUMBNAIL:thumbnail}
 
 application:
   include-internal-exception-message: ${INCLUDE_INTERNAL_EXCEPTION_MESSAGE:true}

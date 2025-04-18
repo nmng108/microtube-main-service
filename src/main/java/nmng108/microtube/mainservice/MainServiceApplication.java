@@ -1,10 +1,8 @@
 package nmng108.microtube.mainservice;
 
-import io.minio.ListObjectsArgs;
-import io.minio.MinioAsyncClient;
-import io.minio.RemoveObjectsArgs;
-import io.minio.RestoreObjectArgs;
+import io.minio.*;
 import io.minio.errors.*;
+import io.minio.http.Method;
 import lombok.extern.slf4j.Slf4j;
 import nmng108.microtube.mainservice.configuration.ObjectStoreConfiguration;
 import nmng108.microtube.mainservice.service.ObjectStoreService;
@@ -18,9 +16,6 @@ import org.springframework.boot.autoconfigure.security.reactive.ReactiveUserDeta
 import org.springframework.context.ApplicationContext;
 import reactor.tools.agent.ReactorDebugAgent;
 
-import java.io.IOException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 
 @SpringBootApplication(
         exclude = {
@@ -43,9 +38,18 @@ public class MainServiceApplication /*implements CommandLineRunner*/ {
 //        ObjectStoreConfiguration config = applicationContext.getBean(ObjectStoreConfiguration.class);
 //        MinioAsyncClient minioAsyncClient = applicationContext.getBean(MinioAsyncClient.class);
 //        ObjectStoreService objectStoreService = applicationContext.getBean(ObjectStoreService.class);
-//        String bucket = config.getHlsBucketName();
+//        String bucket = "avatar";
 //        String dir = "1/4db43e0f-680e-4bcd-bfbb-37d4d3cd5b27.mp4";
 //
+//        String policy = minioAsyncClient.getBucketPolicy(GetBucketPolicyArgs.builder().bucket("avatar").build()).get();
+
+//        minioAsyncClient.setBucketPolicy(SetBucketPolicyArgs.builder()
+//                .bucket("avatar")
+//                .config(new String(FileCopyUtils.copyToByteArray(
+//                        new FileInputStream("./minio-download-policy.json")
+//                )).replaceAll("\\$\\{bucket}", "avatar"))
+//                .build());
+
 //        log.info("file: {}", objectStoreService.getObject(bucket, dir).object());
 //        minioAsyncClient//.restoreObject(RestoreObjectArgs.builder()..build())
 //                .listObjects(ListObjectsArgs.builder().bucket(bucket).prefix(dir).recursive(true).build())

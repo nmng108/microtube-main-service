@@ -11,11 +11,12 @@ public class WebFluxConfiguration implements WebFluxConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         WebFluxConfigurer.super.addCorsMappings(registry);
 
-        registry.addMapping("/**")
-                .allowedOrigins("*")
-//                .allowCredentials(true)
-                .allowedMethods("*")
-                .allowedHeaders("*");
+        // If not using Gateway, this should be set properly
+//        registry.addMapping("/**")
+//                .allowedOriginPatterns("http://localhost**", "http://127.0.0.1**")
+//                .allowedMethods("*")
+//                .allowedHeaders("*")
+//                .allowCredentials(true);
     }
 
     @Override

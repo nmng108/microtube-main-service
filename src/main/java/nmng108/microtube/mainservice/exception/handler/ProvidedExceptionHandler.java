@@ -125,7 +125,7 @@ public class ProvidedExceptionHandler {
     @ExceptionHandler(ServerWebInputException.class)
     public ResponseEntity<ExceptionResponse> handleServerWebInputException(ServerWebInputException e) {
         if (e.getCause() instanceof DecodingException) {
-            return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002));
+            return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002, Collections.singletonList("Invalid request body")));
         }
 
         return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002, Collections.singletonList(e.getReason())));
@@ -136,7 +136,7 @@ public class ProvidedExceptionHandler {
      */
     @ExceptionHandler(MissingRequestValueException.class)
     public ResponseEntity<ExceptionResponse> handleMissingRequestValueException(MissingRequestValueException e) {
-        return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002, Collections.singletonList(e.getReason())));
+                return ResponseEntity.badRequest().body(new ExceptionResponse(ErrorCode.E00002, Collections.singletonList(e.getReason())));
     }
 
     /**

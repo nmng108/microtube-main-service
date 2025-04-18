@@ -3,8 +3,9 @@ package nmng108.microtube.mainservice.configuration.database;
 import io.r2dbc.spi.ConnectionFactory;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
-import nmng108.microtube.mainservice.repository.impl.SoftDeletionReactiveRepositoryImpl;
 import nmng108.microtube.mainservice.util.constant.Constants;
+import nmng108.microtube.mainservice.util.converter.EntityReadingConverter;
+import nmng108.microtube.mainservice.util.converter.EntityWritingConverter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.r2dbc.ConnectionFactoryBuilder;
 import org.springframework.context.annotation.Bean;
@@ -14,6 +15,7 @@ import org.springframework.data.r2dbc.repository.config.EnableR2dbcRepositories;
 import org.springframework.r2dbc.connection.R2dbcTransactionManager;
 import org.springframework.r2dbc.core.DatabaseClient;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -77,6 +79,11 @@ public class MainR2dbcDatabaseConfiguration extends AbstractR2dbcConfiguration {
 
     @Override
     protected List<Object> getCustomConverters() {
-        return List.of();
+        List<Object> customConverters = new ArrayList<>();
+
+        customConverters.addAll(EntityReadingConverter.getAllConverters);
+        customConverters.addAll(EntityWritingConverter.getAllConverters);
+
+        return customConverters;
     }
 }

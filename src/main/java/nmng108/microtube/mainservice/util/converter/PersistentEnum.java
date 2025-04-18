@@ -6,3 +6,11 @@ public interface PersistentEnum<P> extends EnumMatcher<P>, PersistedValueGetter<
         return getPersistedValue().equals(value);
     }
 }
+
+interface EnumMatcher<T> {
+    boolean matches(T value);
+}
+
+interface PersistedValueGetter<P> {
+    P getPersistedValue();
+}

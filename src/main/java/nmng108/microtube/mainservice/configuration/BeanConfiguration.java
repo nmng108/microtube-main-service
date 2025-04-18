@@ -14,6 +14,8 @@ import org.springframework.web.reactive.function.client.WebClient;
 
 import java.beans.PropertyEditor;
 import java.beans.PropertyEditorSupport;
+import java.time.ZoneOffset;
+import java.util.TimeZone;
 
 @Configuration
 public class BeanConfiguration {
@@ -21,6 +23,8 @@ public class BeanConfiguration {
     public JsonMapper jsonMapper() {
         return JsonMapper.builder()
                 .configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false)
+//                .configure(SerializationFeature.WRITE_DATES_WITH_ZONE_ID, true)
+//                .defaultTimeZone(TimeZone.getTimeZone(ZoneOffset.UTC))
                 .addModule(new JavaTimeModule())
                 .build();
     }

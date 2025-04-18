@@ -13,17 +13,28 @@ import java.util.stream.Collectors;
 
 @Data
 @NoArgsConstructor
-@AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PagingResponse<T> {
-    Integer current;
+    int current;
     int size;
     int totalPages;
     long totalRecords;
     Collection<T> dataset;
 
     public PagingResponse(Collection<T> dataset) {
-        this(1, dataset.size(), 1, dataset.size(), dataset);
+        this(1, 1, dataset.size(), dataset);
+    }
+
+    public PagingResponse(PagingRequest pagingRequest, long totalRecords, Collection<T> dataset) {
+        this(pagingRequest.getPage(), (int) Math.ceil((double) totalRecords / pagingRequest.getSize()), totalRecords, dataset);
+    }
+
+    public PagingResponse(int current, int totalPages, long totalRecords, Collection<T> dataset) {
+        this.current = current;
+        this.size = dataset.size();
+        this.totalPages = totalPages;
+        this.totalRecords = totalRecords;
+        this.dataset = dataset;
     }
 
     /**

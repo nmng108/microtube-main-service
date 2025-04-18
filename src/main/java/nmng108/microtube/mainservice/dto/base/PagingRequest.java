@@ -24,7 +24,7 @@ public class PagingRequest {
 
     @Digits(integer = 9, fraction = 0, message = "Page number must be an integer")
     @Min(value = 1, message = "Page number must start from 1")
-    int page = Constants.Paging.DEFAULT_PAGE_NUMBER; // pre-assigned with default in case this is not assigned in constructor
+    int page = MIN_PAGE_NUMBER; // pre-assigned with default in case this is not assigned in constructor
     @Digits(integer = 9, fraction = 0, message = "Size of a page must be an integer")
     @Min(value = 0, message = "Size of a page should start from 1")
     int size = Constants.Paging.DEFAULT_PAGE_SIZE; // pre-assigned with default in case not assigned in constructor
@@ -46,7 +46,7 @@ public class PagingRequest {
      */
     public Integer getPage() {
         if (page < MIN_PAGE_NUMBER) {
-            page = Constants.Paging.DEFAULT_PAGE_NUMBER;
+            page = MIN_PAGE_NUMBER;
         }
 
         return page;
@@ -66,7 +66,7 @@ public class PagingRequest {
      */
     public Integer getSize() {
         if (size < MIN_SIZE) {
-            size = Constants.Paging.DEFAULT_PAGE_SIZE;
+            size = MIN_SIZE;
         }
 
         return size;

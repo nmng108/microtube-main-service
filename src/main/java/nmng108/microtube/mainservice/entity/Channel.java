@@ -4,11 +4,10 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 import nmng108.microtube.mainservice.util.constant.Constants;
-import org.springframework.data.annotation.*;
+import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
-import java.time.LocalDateTime;
 import java.util.Objects;
 
 @Table(name = "CHANNEL", schema = Constants.DATABASE_NAME)
@@ -24,12 +23,26 @@ public class Channel extends Accountable {
     @Column("NAME")
     String name;
     @Column("PATHNAME")
-    String pathName;
+    String pathname;
     @Column("DESCRIPTION")
     String description;
+    @Column("AVATAR")
+    String avatar;
+    @Column("SUBSCRIPTION_COUNT")
+    long subscriptionCount;
 
     @Column("USER_ID")
     long userId;
+
+    public Channel(Channel other) {
+        super(other);
+        this.id = other.id;
+        this.name = other.name;
+        this.pathname = other.pathname;
+        this.description = other.description;
+        this.avatar = other.avatar;
+        this.userId = other.userId;
+    }
 
     @Override
     public boolean equals(Object o) {

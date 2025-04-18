@@ -1,26 +1,30 @@
 package nmng108.microtube.mainservice.service.impl;
 
-import io.minio.errors.*;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
 import nmng108.microtube.mainservice.configuration.ObjectStoreConfiguration;
 import nmng108.microtube.mainservice.dto.auth.UserDetailsDTO;
 import nmng108.microtube.mainservice.dto.base.BaseResponse;
+import nmng108.microtube.mainservice.dto.base.PagingResponse;
 import nmng108.microtube.mainservice.dto.video.request.CreateVideoDTO;
+import nmng108.microtube.mainservice.dto.video.request.SearchVideoDTO;
 import nmng108.microtube.mainservice.dto.video.request.UpdateVideoDTO;
+import nmng108.microtube.mainservice.dto.video.request.VideoUpdateType;
 import nmng108.microtube.mainservice.dto.video.response.VideoDTO;
 import nmng108.microtube.mainservice.entity.Video;
 import nmng108.microtube.mainservice.exception.BadRequestException;
 import nmng108.microtube.mainservice.exception.ForbiddenException;
 import nmng108.microtube.mainservice.exception.UnauthorizedException;
 import nmng108.microtube.mainservice.repository.ChannelRepository;
+import nmng108.microtube.mainservice.repository.UserRelationVideoRepository;
 import nmng108.microtube.mainservice.repository.VideoRepository;
+import nmng108.microtube.mainservice.repository.extend.impl.ExtendedVideoRepositoryImpl;
+import nmng108.microtube.mainservice.repository.projection.VideoWithChannelOwner;
 import nmng108.microtube.mainservice.service.ObjectStoreService;
 import nmng108.microtube.mainservice.service.UserService;
 import nmng108.microtube.mainservice.service.VideoService;
 import nmng108.microtube.mainservice.util.HelperMethods;
-import org.reactivestreams.Publisher;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -32,12 +36,11 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.io.BufferedInputStream;
-import java.io.IOException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 @Service
@@ -48,6 +51,7 @@ public class VideoServiceImpl implements VideoService {
     ObjectStoreService objectStoreService;
     UserService userService;
     VideoRepository videoRepository;
+    UserRelationVideoRepository userRelationVideoRepository;
     ChannelRepository channelRepository;
 
 //    String processingDir;
@@ -57,7 +61,9 @@ public class VideoServiceImpl implements VideoService {
             ObjectStoreConfiguration objectStoreConfiguration,
             ObjectStoreService objectStoreService,
             UserService userService,
-            VideoRepository videoRepository, ChannelRepository channelRepository
+            VideoRepository videoRepository,
+            UserRelationVideoRepository userRelationVideoRepository,
+            ChannelRepository channelRepository
 //            @Value("${video.temp-dir:tmp/original-videos/}") String processingDir,
 //            @Value("${video.result-dir:tmp/result-videos/}") String resultDir,
     ) {
@@ -65,6 +71,7 @@ public class VideoServiceImpl implements VideoService {
         this.objectStoreService = objectStoreService;
         this.userService = userService;
         this.videoRepository = videoRepository;
+        this.userRelationVideoRepository = userRelationVideoRepository;
         this.channelRepository = channelRepository;
 //        this.processingDir = processingDir;
 //        this.resultDir = resultDir;
@@ -90,18 +97,35 @@ public class VideoServiceImpl implements VideoService {
 //    }
 
     @Override
-    public Mono<BaseResponse<List<VideoDTO>>> getAll() {
-        return videoRepository.findAll()
-                .map(VideoDTO::new)
-                .collectList()
-                .map(BaseResponse::succeeded);
+    public Mono<BaseResponse<PagingResponse<VideoDTO>>> getAll(SearchVideoDTO dto) {
+        return userService.getCurrentUser()
+                .map((u) -> {
+                    dto.setUserIdWithRelation(u.getId());
+
+                    return dto;
+                })
+                .then(Mono.fromCallable(() -> videoRepository.buildQuery(dto)))
+                .flatMap((query) -> query.countTotal()
+                        .filter((total) -> total > 0)
+                        .flatMap((total) -> query.find()
+                                .map((v) -> new VideoDTO(v, VideoDTO.Format.CONCISE)
+                                        .setThumbnail(objectStoreService.getDownloadUrl(v.getThumbnail()))
+                                        .setChannelAvatar(objectStoreService.getDownloadUrl(v.getChannelAvatar())))
+                                .collectList()
+                                .map((list) -> new PagingResponse<>(dto, total, list))
+                        )
+                        .switchIfEmpty(Mono.just(new PagingResponse<>()))
+                        .map(BaseResponse::succeeded));
     }
 
     @Override
     public Mono<BaseResponse<VideoDTO>> getById(String id) {
         return retrieveVideo(id)
                 .switchIfEmpty(Mono.error(new NoResourceFoundException("")))
-                .map(VideoDTO::new)
+                .map((v) -> new VideoDTO(v, VideoDTO.Format.DETAILS)
+                        .setThumbnail(objectStoreService.getDownloadUrl(v.getThumbnail()))
+                        .setUrl(objectStoreService.getDownloadUrl(v.getDestFilepath()))
+                        .setChannelAvatar(objectStoreService.getDownloadUrl(v.getChannelAvatar())))
                 .map(BaseResponse::succeeded);
     }
 
@@ -127,7 +151,7 @@ public class VideoServiceImpl implements VideoService {
                                 log.error(STR."Generated a duplicate code '\{code}'");
                                 sink.error(new BadRequestException(STR."Having unexpected error. Try again later."));
                             })
-                            .switchIfEmpty(videoRepository.save(v))
+                            .then(videoRepository.save(v))
                             ;
                 })
 //                .publishOn(Schedulers.boundedElastic())
@@ -155,7 +179,20 @@ public class VideoServiceImpl implements VideoService {
 //                    v.setCode(code);
 //                    videoRepository.save(v).subscribe();
 //                })
-                .mapNotNull((v) -> BaseResponse.succeeded(new VideoDTO((Video) v)));
+                .mapNotNull((v) -> new VideoDTO(v, VideoDTO.Format.CONCISE))
+                .mapNotNull(BaseResponse::succeeded);
+    }
+
+    @Override
+    public Mono<Resource> getThumbnailFile(String id) {
+        return retrieveVideo(id)
+                .switchIfEmpty(Mono.error(new NoResourceFoundException("")))
+                .publishOn(Schedulers.boundedElastic())
+                .map((v) -> new BufferedInputStream(objectStoreService.getObject(
+                        objectStoreConfiguration.getTemporaryBucketName(),
+                        v.getThumbnail()
+                )))
+                .map(InputStreamResource::new);
     }
 
     @Override
@@ -411,16 +448,62 @@ public class VideoServiceImpl implements VideoService {
 */
 
     @Override
+    @Transactional
     public Mono<BaseResponse<VideoDTO>> updateInfo(String id, UpdateVideoDTO dto) {
-        return retrieveVideo(id)
-                .flatMap((v) -> {
-                    dto.applyPatchUpdatesToEntity(v);
+        Mono<VideoWithChannelOwner> videoMono = retrieveVideo(id);
+        Mono<UserDetailsDTO> userMono = userService.getCurrentUser().switchIfEmpty(Mono.error(UnauthorizedException::new));
+        var updateType = dto.getUpdateType();
 
-                    return videoRepository.save(v);
-                })
-                .mapNotNull(VideoDTO::new)
-                .mapNotNull(BaseResponse::succeeded);
-//                .(() -> new BadRequestException("Video not found"));
+        return switch (updateType) {
+            case VideoUpdateType.UPDATE_INFO -> videoMono
+                    .filterWhen((v) -> userMono
+                            .map((u) -> Objects.equals(v.getUserId(), u.getId())))
+                    .switchIfEmpty(Mono.error(ForbiddenException::new))
+                    .flatMap((v) -> {
+                        dto.applyPatchUpdatesToEntity(v);
+
+                        return videoRepository.save(v);
+                    })
+                    .map((v) -> new VideoDTO(v, VideoDTO.Format.DETAILS)
+                            .setThumbnail(objectStoreService.getDownloadUrl(v.getThumbnail()))
+                            .setUrl(objectStoreService.getDownloadUrl(v.getDestFilepath()))
+                    )
+                    .map(BaseResponse::succeeded);
+            case LIKE, DISLIKE -> videoMono
+                    .flatMap((v) -> userMono
+                            .flatMap((u) -> {
+                                int reactionNumber = (updateType == VideoUpdateType.LIKE) ? 1 : 2;
+
+                                return userRelationVideoRepository.findByUserIdAndVideoId(u.getId(), v.getId())
+                                        .flatMap((relation) -> {
+                                            Mono<?> minusOldCount = (relation.getReaction() != null && relation.getReaction() != reactionNumber)
+                                                    ? (updateType == VideoUpdateType.LIKE)
+                                                    ? videoRepository.changeDislikeCount(v.getId(), false)
+                                                    : videoRepository.changeLikeCount(v.getId(), false)
+                                                    : Mono.empty();
+
+                                            return minusOldCount
+                                                    .then(videoRepository.updateRelationToUser(u.getId(), v.getId(), 0, reactionNumber, ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime()))
+                                                    .filter((exists) -> exists)
+                                                    ;
+                                        })
+                                        .switchIfEmpty(videoRepository.insertRelationToUser(u.getId(), v.getId(), 0, reactionNumber, ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime()))
+                                        .then((updateType == VideoUpdateType.LIKE)
+                                                ? videoRepository.changeLikeCount(v.getId(), true)
+                                                : videoRepository.changeDislikeCount(v.getId(), true))
+                                        .thenReturn(BaseResponse.succeeded());
+                            }));
+            case CANCEL_LIKE, CANCEL_DISLIKE -> videoMono
+                    .flatMap((v) -> userMono
+                            .flatMap((u) -> videoRepository.updateRelationToUser(u.getId(), v.getId(), 0, null, ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime()))
+                            .then((updateType == VideoUpdateType.CANCEL_LIKE)
+                                    ? videoRepository.changeLikeCount(v.getId(), false)
+                                    : videoRepository.changeDislikeCount(v.getId(), false))
+                            .thenReturn(BaseResponse.succeeded()));
+            case INCREASE_VIEW -> videoMono
+                    .doOnNext((v) -> videoRepository.increaseViewCount(v.getId()).subscribeOn(Schedulers.boundedElastic()).subscribe())
+                    .thenReturn(BaseResponse.succeeded());
+        };
     }
 
     @Override
@@ -466,7 +549,7 @@ public class VideoServiceImpl implements VideoService {
                 .orElse(Mono.empty()));
         Mono<Void> deleteOriginalFile = Mono.defer(() -> Optional.ofNullable(video.getTempFilepath())
                 .filter(StringUtils::hasText)
-                .map((path) -> objectStoreService.removeObjectAsync(objectStoreConfiguration.getUserStoreBucketName(), path))
+                .map((path) -> objectStoreService.removeObjectAsync(objectStoreConfiguration.getTemporaryBucketName(), path))
                 .map(Mono::fromCompletionStage)
                 .orElse(Mono.empty()));
 
@@ -478,11 +561,30 @@ public class VideoServiceImpl implements VideoService {
                 ;
     }
 
-    public Mono<Video> retrieveVideo(String identifiable) {
+//    @Override
+//    public Mono<Void> updateViewerBehavior(String id, VideoUpdateType action) {
+//        Mono<?> doAction = switch (action) {
+//            case INCREASE_VIEW ->
+//            case LIKE, DISLIKE ->
+//            case CANCEL_LIKE, CANCEL_DISLIKE ->
+//        };
+//
+//        return doAction.then();
+//    }
+
+    @Override
+    public Mono<VideoWithChannelOwner> retrieveVideo(String identifiable) {
+//        ExtendedVideoRepositoryImpl.VideoQuery query = videoRepository.buildQuery();
+
         return Mono.fromCallable(() -> Long.parseLong(identifiable))
-                .flatMap(videoRepository::findById)
-                .onErrorResume(NumberFormatException.class, (error) -> videoRepository.findByCode(identifiable))
-                // TODO: only allow owner or Admin/Manager to view
+                .flatMap(videoRepository::findByIdOrCode)
+                .onErrorResume(NumberFormatException.class, (_) -> videoRepository.findByCode(identifiable))
+                .flatMap((v) -> userService.getCurrentUser().singleOptional().flatMap((userOptional) -> videoRepository.buildQuery(
+                        SearchVideoDTO.builder()
+                                .ids(Collections.singletonList(v.getId()))
+                                .userIdWithRelation(userOptional.map(UserDetailsDTO::getId).orElse(null))
+                                .build()
+                ).find().elementAt(0)))
 //                .flatMap((v) -> userService.getCurrentUser().map(u -> ))
                 ;
     }

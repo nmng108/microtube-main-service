@@ -50,7 +50,7 @@ public class UserResource {
                 });
     }
 
-    @PutMapping("/{id}")
+    @PatchMapping("/{id}")
     public ResponseEntity<Mono<BaseResponse<UserDTO>>> updateUser(@PathVariable("id") String identifiable, @RequestBody @Valid UpdateUserDTO dto) {
         return ResponseEntity.ok(userService.updateUserInfo(identifiable, dto));
     }

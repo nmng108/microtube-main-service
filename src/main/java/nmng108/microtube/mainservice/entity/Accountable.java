@@ -1,9 +1,6 @@
 package nmng108.microtube.mainservice.entity;
 
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedBy;
@@ -36,6 +33,15 @@ public class Accountable {
     private Long deletedBy;
     @Column("DELETED_AT")
     private LocalDateTime deletedAt;
+
+    public Accountable(Accountable other) {
+        this.createdBy = other.createdBy;
+        this.createdAt = other.createdAt;
+        this.modifiedBy = other.modifiedBy;
+        this.modifiedAt = other.modifiedAt;
+        this.deletedBy = other.deletedBy;
+        this.deletedAt = other.deletedAt;
+    }
 
     public boolean isDeleted() {
         return deletedAt != null;

@@ -2,6 +2,7 @@ package nmng108.microtube.mainservice.configuration.security;
 
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
+import nmng108.microtube.mainservice.util.constant.Routes;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -31,7 +32,7 @@ public class WebSecurityConfiguration {
                                     ServerAccessDeniedHandler accessDeniedHandler,
 //                                    JwtVerificationFilter jwtVerificationFilter,
                                     CentralAuthSecurityContextRepository centralAuthSecurityContextRepository,
-                                    @Value("${api.base-path}") String apiBasePath
+                                    @Value("${api.server-base-path}") String apiBasePath
     ) {
         this.authenticationEntryPoint = authenticationEntryPoint;
         this.accessDeniedHandler = accessDeniedHandler;
@@ -105,7 +106,7 @@ public class WebSecurityConfiguration {
 //    }
 
     @Bean
-    public SecurityWebFilterChain channelEndpointsFilterChain(ServerHttpSecurity serverHttpSecurity) throws Exception {
+    public SecurityWebFilterChain channelEndpointsFilterChain(ServerHttpSecurity serverHttpSecurity) {
         return serverHttpSecurity
                 .securityMatcher((exchange) -> exchange.getRequest().getPath().value().matches(STR."^\{apiBasePath}/channels.*$")
                         ? ServerWebExchangeMatcher.MatchResult.match()
@@ -129,7 +130,7 @@ public class WebSecurityConfiguration {
     }
 
     @Bean
-    public SecurityWebFilterChain videoEndpointsFilterChain(ServerHttpSecurity serverHttpSecurity) throws Exception {
+    public SecurityWebFilterChain videoEndpointsFilterChain(ServerHttpSecurity serverHttpSecurity) {
         return serverHttpSecurity
                 .securityMatcher((exchange) -> exchange.getRequest().getPath().value().matches(STR."^\{apiBasePath}/videos.*$")
                         ? ServerWebExchangeMatcher.MatchResult.match()
@@ -142,10 +143,44 @@ public class WebSecurityConfiguration {
                         .pathMatchers(HttpMethod.GET, apiBasePath + "/videos").permitAll()
                         .pathMatchers(HttpMethod.GET, apiBasePath + "/videos/**").permitAll()
 //                        .pathMatchers(HttpMethod.POST, apiBasePath + "/videos").authenticated()
-//                        .pathMatchers(HttpMethod.PATCH, apiBasePath + "/videos/*").authenticated()
+                        .pathMatchers(HttpMethod.PATCH, apiBasePath + "/videos/*").permitAll()
 //                        .pathMatchers(HttpMethod.DELETE, apiBasePath + "/videos/*").authenticated()
                         .anyExchange().authenticated()
                 )
+                .securityContextRepository(centralAuthSecurityContextRepository)
+                .build();
+    }
+
+    @Bean
+    public SecurityWebFilterChain commentEndpointsFilterChain(ServerHttpSecurity serverHttpSecurity) {
+        return serverHttpSecurity
+                .securityMatcher((exchange) -> exchange.getRequest().getPath().value().matches(STR."^\{apiBasePath}\{Routes.comments}.*$")
+                        ? ServerWebExchangeMatcher.MatchResult.match()
+                        : ServerWebExchangeMatcher.MatchResult.notMatch())
+                .exceptionHandling((handler) -> handler
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange((authorize) -> authorize
+                        .pathMatchers(HttpMethod.GET, apiBasePath + STR."/\{Routes.comments}/**").permitAll()
+                        .pathMatchers(apiBasePath + STR."/\{Routes.comments}").authenticated()
+                        .anyExchange().authenticated()
+                )
+                .securityContextRepository(centralAuthSecurityContextRepository)
+                .build();
+    }
+
+    @Bean
+    public SecurityWebFilterChain watchHistoryEndpointsFilterChain(ServerHttpSecurity serverHttpSecurity) {
+        return serverHttpSecurity
+                .securityMatcher((exchange) -> exchange.getRequest().getPath().value().matches(STR."^\{apiBasePath}\{Routes.watchHistory}.*$")
+                        ? ServerWebExchangeMatcher.MatchResult.match()
+                        : ServerWebExchangeMatcher.MatchResult.notMatch())
+                .exceptionHandling((handler) -> handler
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler))
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange((authorize) -> authorize.anyExchange().authenticated())
                 .securityContextRepository(centralAuthSecurityContextRepository)
                 .build();
     }

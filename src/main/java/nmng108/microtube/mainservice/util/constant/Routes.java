@@ -19,4 +19,7 @@ public interface Routes {
     interface Video {
         String basePath = "/videos";
     }
+
+    String watchHistory = "/watch-history";
+    String comments = "/comments";
 }

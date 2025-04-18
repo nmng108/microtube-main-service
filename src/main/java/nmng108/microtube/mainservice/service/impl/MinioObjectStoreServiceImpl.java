@@ -7,12 +7,17 @@ import io.minio.messages.DeleteObject;
 import io.minio.messages.Item;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
+import nmng108.microtube.mainservice.configuration.ObjectStoreConfiguration;
 import nmng108.microtube.mainservice.service.ObjectStoreService;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.InvalidKeyException;
@@ -25,10 +30,16 @@ import java.util.concurrent.CompletableFuture;
 @Service
 @FieldDefaults(level = AccessLevel.PRIVATE, makeFinal = true)
 public class MinioObjectStoreServiceImpl implements ObjectStoreService {
+    ObjectStoreConfiguration configuration;
     MinioClient minioClient;
     MinioAsyncClient minioAsyncClient;
 
-    public MinioObjectStoreServiceImpl(@Qualifier("minioClient") MinioClient minioClient, @Qualifier("minioAsyncClient") MinioAsyncClient minioAsyncClient) {
+    public MinioObjectStoreServiceImpl(
+            ObjectStoreConfiguration configuration,
+            @Qualifier("minioClient") MinioClient minioClient,
+            @Qualifier("minioAsyncClient") MinioAsyncClient minioAsyncClient
+    ) {
+        this.configuration = configuration;
         this.minioClient = minioClient;
         this.minioAsyncClient = minioAsyncClient;
     }
@@ -71,6 +82,21 @@ public class MinioObjectStoreServiceImpl implements ObjectStoreService {
     }
 
     @Override
+    public CompletableFuture<ObjectWriteResponse> putObjectAsync(String bucketName, String objectName, MultipartFile file) {
+        try (InputStream inputStream = new BufferedInputStream(file.getInputStream(), 64 * 1024)) {
+            return minioAsyncClient.putObject(PutObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(objectName)
+                    .contentType(file.getContentType())
+                    .stream(inputStream, file.getSize(), -1)
+                    .build());
+        } catch (InsufficientDataException | IOException | NoSuchAlgorithmException | InvalidKeyException |
+                 XmlParserException | InternalException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
     public void putObject(String bucketName, String objectName, File file, String contentType) {
         try (InputStream inputStream = new BufferedInputStream(new FileInputStream(file))) {
             long size = Files.readAttributes(file.toPath(), BasicFileAttributes.class).size();
@@ -84,21 +110,6 @@ public class MinioObjectStoreServiceImpl implements ObjectStoreService {
         } catch (ServerException | InsufficientDataException | ErrorResponseException | IOException |
                  NoSuchAlgorithmException | InvalidKeyException | InvalidResponseException | XmlParserException |
                  InternalException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    public CompletableFuture<ObjectWriteResponse> putObjectAsync(String bucketName, String objectName, MultipartFile file) {
-        try (InputStream inputStream = new BufferedInputStream(file.getInputStream(), 64 * 1024)) {
-            return minioAsyncClient.putObject(PutObjectArgs.builder()
-                    .bucket(bucketName)
-                    .object(objectName)
-                    .contentType(file.getContentType())
-                    .stream(inputStream, file.getSize(), -1)
-                    .build());
-        } catch (InsufficientDataException | IOException | NoSuchAlgorithmException | InvalidKeyException |
-                 XmlParserException | InternalException e) {
             throw new RuntimeException(e);
         }
     }
@@ -151,6 +162,16 @@ public class MinioObjectStoreServiceImpl implements ObjectStoreService {
     }
 
     @Override
+    public CompletableFuture<Void> removeObjectAsync(String bucketName, String objectName) {
+        try {
+            return minioAsyncClient.removeObject(RemoveObjectArgs.builder().bucket(bucketName).object(objectName).build());
+        } catch (InsufficientDataException | IOException | NoSuchAlgorithmException | InvalidKeyException |
+                 XmlParserException | InternalException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
     public Iterable<Result<DeleteError>> removeObjectsWithPrefix(String bucketName, String prefix) {
         List<DeleteObject> deleteObjects = new LinkedList<>();
 
@@ -170,12 +191,19 @@ public class MinioObjectStoreServiceImpl implements ObjectStoreService {
     }
 
     @Override
-    public CompletableFuture<Void> removeObjectAsync(String bucketName, String objectName) {
+    @Nullable
+    public String getDownloadUrl(@Nullable String objectPath) {
+        if (!StringUtils.hasText(objectPath)) {
+            return null;
+        }
+
         try {
-            return minioAsyncClient.removeObject(RemoveObjectArgs.builder().bucket(bucketName).object(objectName).build());
-        } catch (InsufficientDataException | IOException | NoSuchAlgorithmException | InvalidKeyException |
-                 XmlParserException | InternalException e) {
-            throw new RuntimeException(e);
+//            String[] splitPath = objectPath.split(":");
+
+            return STR."\{configuration.getUrl()}/\{objectPath.replace(":", "/")}";
+//        return STR."\{configuration.getUrl()}/api/v1/buckets/\{splitPath[0]}/objects/download?prefix=\{URLEncoder.encode(splitPath[1], StandardCharsets.UTF_8)}";
+        } catch (Exception e) {
+            return null;
         }
     }
 }

@@ -4,7 +4,6 @@ public interface Constants {
     String DATABASE_NAME = "MICROTUBE";
 
     interface Paging {
-        int DEFAULT_PAGE_NUMBER = 1;
         int DEFAULT_PAGE_SIZE = 20;
     }
 

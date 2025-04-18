@@ -6,9 +6,13 @@ import jakarta.validation.constraints.Pattern;
 import lombok.AccessLevel;
 import lombok.experimental.FieldDefaults;
 import nmng108.microtube.mainservice.dto.base.BaseResponse;
+import nmng108.microtube.mainservice.dto.base.PagingResponse;
 import nmng108.microtube.mainservice.dto.video.request.CreateVideoDTO;
+import nmng108.microtube.mainservice.dto.video.request.SearchVideoDTO;
 import nmng108.microtube.mainservice.dto.video.request.UpdateVideoDTO;
+import nmng108.microtube.mainservice.dto.video.request.VideoUpdateType;
 import nmng108.microtube.mainservice.dto.video.response.VideoDTO;
+import nmng108.microtube.mainservice.exception.BadRequestException;
 import nmng108.microtube.mainservice.service.VideoService;
 import nmng108.microtube.mainservice.util.constant.Routes;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,7 +24,6 @@ import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 import java.net.URI;
-import java.util.List;
 
 @RestController
 @RequestMapping("${api.base-path}" + Routes.Video.basePath)
@@ -36,8 +39,8 @@ public class VideoResource {
     }
 
     @GetMapping
-    public ResponseEntity<Mono<BaseResponse<List<VideoDTO>>>> getAll() {
-        return ResponseEntity.ok(videoService.getAll());
+    public ResponseEntity<Mono<BaseResponse<PagingResponse<VideoDTO>>>> getAll(@Valid SearchVideoDTO dto) {
+        return ResponseEntity.ok(videoService.getAll(dto));
     }
 
     @GetMapping("/{id}")
@@ -53,6 +56,16 @@ public class VideoResource {
 
                     return ResponseEntity.created(URI.create(STR."\{basePath}/\{id}")).body(res);
                 });
+    }
+
+    @Operation(summary = "Fetch master/index file of specified video")
+    @GetMapping(value = "/{id}/thumbnail", produces = "application/vnd.apple.mpegurl"/*MediaType.APPLICATION_OCTET_STREAM_VALUE*/)
+    public ResponseEntity<Mono<Resource>> getThumbnail(@PathVariable("id") String id) {
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, "application/vnd.apple.mpegurl")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=master.m3u8")
+                .header(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS, STR."\{HttpHeaders.CONTENT_TYPE}, \{HttpHeaders.CONTENT_LENGTH}, \{HttpHeaders.CONTENT_DISPOSITION}")
+                .body(videoService.getThumbnailFile(id));
     }
 
     @Operation(summary = "Fetch master/index file of specified video")
@@ -86,7 +99,7 @@ public class VideoResource {
 //    }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<Mono<BaseResponse<VideoDTO>>> updateInfo(@PathVariable("id") String id, @RequestBody @Valid UpdateVideoDTO dto) {
+    public ResponseEntity<Mono<BaseResponse<VideoDTO>>> update(@PathVariable("id") String id, @RequestBody @Valid UpdateVideoDTO dto) {
         return ResponseEntity.ok(videoService.updateInfo(id, dto));
     }
 
@@ -94,4 +107,16 @@ public class VideoResource {
     public ResponseEntity<Mono<BaseResponse<Void>>> delete(@PathVariable("id") String id) {
         return ResponseEntity.accepted().body(videoService.delete(id));
     }
+
+//    // TODO: may integrate this API into the update API.
+//    @PatchMapping("/{id}/{action}")
+//    public Mono<ResponseEntity<BaseResponse<Void>>> updateViewerBehavior(@PathVariable("id") String id, @PathVariable("action") String action/*, @RequestBody @Valid UpdateVideoDTO dto*/) {
+//        VideoUpdateType actionEnum = VideoUpdateType.from(action);
+//
+//        if (actionEnum == null) {
+//            throw new BadRequestException("Invalid action");
+//        }
+//
+//        return videoService.updateViewerBehavior(id, actionEnum).thenReturn(ResponseEntity.ok(BaseResponse.succeeded()));
+//    }
 }

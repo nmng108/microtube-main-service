@@ -24,14 +24,14 @@ public class CreateChannelDTO {
     @Size(min = 3, max = 30)
     @Pattern(regexp = "^[a-z]+[a-z\\d]*(_[a-z\\d]+)*$")
     @Schema(description = "Customize pathname to the channel. By default it will also be username.")
-    String pathName;
+    String pathname;
     @Size(max = 2000)
     String description;
 
     public Channel toChannel() {
         return Channel.builder()
                 .name(name.strip())
-                .pathName(Optional.ofNullable(pathName).map(String::strip).orElse(null))
+                .pathname(Optional.ofNullable(pathname).map(String::strip).orElse(null))
                 .description(Optional.ofNullable(description).map(String::strip).orElse(null))
                 .build();
     }

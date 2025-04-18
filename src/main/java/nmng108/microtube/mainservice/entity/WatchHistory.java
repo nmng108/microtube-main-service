@@ -4,6 +4,7 @@ import lombok.*;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
 import nmng108.microtube.mainservice.util.constant.Constants;
+import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
@@ -29,9 +30,16 @@ public class WatchHistory {
     @Column("PAUSE_POSITION")
     Long pausePosition;
     @Column("CREATED_AT")
+    @CreatedDate
     Instant createdAt;
     @Column("MODIFIED_AT")
     Instant modifiedAt;
+
+    public WatchHistory(Long userId, Long videoId, Long pausePosition) {
+        this.userId = userId;
+        this.videoId = videoId;
+        this.pausePosition = pausePosition;
+    }
 
     @Override
     public boolean equals(Object o) {

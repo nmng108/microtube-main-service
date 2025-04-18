@@ -41,3 +41,5 @@ build/
 **/logs*/
 **/data*/
 !**/src/**/data*/
+# JVM's error report files
+hs_err*
