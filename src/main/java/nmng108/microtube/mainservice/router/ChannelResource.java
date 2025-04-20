@@ -36,8 +36,12 @@ public class ChannelResource {
     }
 
     @GetMapping
-    public ResponseEntity<Mono<BaseResponse<PagingResponse<ChannelDTO>>>> getAll(PagingRequest pagingRequest, @RequestParam(value = "name", required = false) String name) {
-        return ResponseEntity.ok(channelService.getAll(pagingRequest, name));
+    public ResponseEntity<Mono<BaseResponse<PagingResponse<ChannelDTO>>>> getAll(
+            PagingRequest pagingRequest,
+            @RequestParam(value = "name", required = false) String name,
+            @RequestParam(value = "subscribed", required = false) Boolean subscribed
+    ) {
+        return ResponseEntity.ok(channelService.getAll(pagingRequest, name, subscribed));
     }
 
     @GetMapping("/{id}")

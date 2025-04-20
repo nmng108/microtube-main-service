@@ -30,7 +30,7 @@ public class CreateVideoDTO {
     public Video toVideo() {
         return Video.builder()
                 .title(title.strip())
-                .description(description.strip())
+                .description(description.strip().replaceAll("<", "&lt;").replaceAll(">", "&gt;"))
                 .visibility(visibility)
                 .allowsComment(allowsComment)
                 .build();

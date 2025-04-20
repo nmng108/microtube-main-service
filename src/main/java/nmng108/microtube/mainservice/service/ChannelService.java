@@ -11,7 +11,7 @@ import org.springframework.lang.Nullable;
 import reactor.core.publisher.Mono;
 
 public interface ChannelService {
-    Mono<BaseResponse<PagingResponse<ChannelDTO>>> getAll(PagingRequest pagingRequest, @Nullable String name);
+    Mono<BaseResponse<PagingResponse<ChannelDTO>>> getAll(PagingRequest pagingRequest, @Nullable String name, @Nullable Boolean subscribed);
 
     Mono<BaseResponse<ChannelDTO>> getByIdOrPathName(String id);
 

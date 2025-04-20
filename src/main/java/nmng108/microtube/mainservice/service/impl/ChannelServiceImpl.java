@@ -48,15 +48,15 @@ public class ChannelServiceImpl implements ChannelService {
     VideoRepository videoRepository;
 
     @Override
-    public Mono<BaseResponse<PagingResponse<ChannelDTO>>> getAll(PagingRequest pagingRequest, @Nullable String name) {
+    public Mono<BaseResponse<PagingResponse<ChannelDTO>>> getAll(PagingRequest pagingRequest, @Nullable String name, @Nullable Boolean subscribed) {
         Pageable pageable = pagingRequest.toPageable();
 
         return userService.getCurrentUser()
-                .flatMapMany((u) -> channelRepository.searchByNameOrPathname(name, u.getId(), pageable.getPageSize(), pageable.getOffset()))
-                .switchIfEmpty(channelRepository.searchByNameOrPathname(name, null, pageable.getPageSize(), pageable.getOffset()))
-                .mapNotNull((c) -> new ChannelDTO(c, objectStoreService.getDownloadUrl(c.getAvatar())))
-                .collectList()
-                .zipWith(channelRepository.countSearchByNameOrPathname(name))
+                .singleOptional()
+                .flatMap((u) -> channelRepository.searchByNameAndIsSubscribed(name, subscribed, u.map(UserDetailsDTO::getId).orElse(null), pageable.getPageSize(), pageable.getOffset())
+                        .mapNotNull((c) -> new ChannelDTO(c, objectStoreService.getDownloadUrl(c.getAvatar())))
+                        .collectList()
+                        .zipWith(channelRepository.countSearchByNameOrPathname(name, subscribed, u.map(UserDetailsDTO::getId).orElse(null))))
                 .map((tuple2) -> new PagingResponse<>(pagingRequest, tuple2.getT2(), tuple2.getT1()))
                 .switchIfEmpty(Mono.just(new PagingResponse<>()))
                 .map(BaseResponse::succeeded);
@@ -178,9 +178,9 @@ public class ChannelServiceImpl implements ChannelService {
                 .flatMap((tuple2) -> action == ChannelAction.SUBSCRIBE
                         ? channelRepository.addSubscription(tuple2.getT2().getId(), tuple2.getT1().getId())
                         .doOnError((e) -> e.printStackTrace())
-                        .then(channelRepository.increaseSubscription(tuple2.getT2().getId()))
+                        .then(channelRepository.increaseSubscriptionCount(tuple2.getT2().getId()))
                         : channelRepository.removeSubscription(tuple2.getT2().getId(), tuple2.getT1().getId())
-                        .then(channelRepository.decreaseSubscription(tuple2.getT2().getId()))
+                        .then(channelRepository.decreaseSubscriptionCount(tuple2.getT2().getId()))
                 )
                 .doOnNext((result) -> log.info("result: " + result))
                 .thenReturn(BaseResponse.succeeded());

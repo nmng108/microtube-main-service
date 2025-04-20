@@ -22,6 +22,7 @@ public class ChannelDTO {
     @Setter
     String avatar;
     long subscriptionCount;
+    long videoCount;
     long userId;
     long createdBy;
     ZonedDateTime createdAt;
@@ -35,6 +36,7 @@ public class ChannelDTO {
         this.description = channel.getDescription();
         this.avatar = avatarUrl;
         this.subscriptionCount = channel.getSubscriptionCount();
+        this.videoCount = channel.getVideoCount();
         this.userId = channel.getUserId();
         this.createdAt = channel.getCreatedAt().atZone(ZoneOffset.UTC);
         this.createdBy = channel.getCreatedBy();

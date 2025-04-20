@@ -80,11 +80,21 @@ public class VideoDTO {
         this.code = video.getCode();
         this.status = new StatusDTO(video.getStatus());
         this.viewCount = video.getViewCount();
-        this.channelId = video.getChannelId();
         this.createdAt = video.getCreatedAt().atZone(ZoneOffset.UTC);
         this.createdBy = video.getCreatedBy();
         this.pausePosition = video.getPausePosition();
         this.reaction = video.getReaction();
+
+        this.channelId = video.getChannelId();
+        this.channelName = video.getChannelName();
+        this.channelPathname = video.getChannelPathname();
+
+        if ((format == Format.CONCISE) && (video.getDescription() != null)) {
+            this.description = (video.getDescription().length() > 120)
+                    ? STR."\{video.getDescription().substring(0, 120)}..."
+                    : video.getDescription();
+            this.description = this.description.replaceAll("[\\n ]+", " ");
+        }
 
         if (format == Format.DETAILS) {
             this.description = video.getDescription();
@@ -92,8 +102,6 @@ public class VideoDTO {
             this.likeCount = video.getLikeCount();
             this.dislikeCount = video.getDislikeCount();
             this.modifiedAt = video.getModifiedAt().atZone(ZoneOffset.UTC);
-            this.channelName = video.getChannelName();
-            this.channelPathname = video.getChannelPathname();
             this.userId = video.getUserId();
         }
     }

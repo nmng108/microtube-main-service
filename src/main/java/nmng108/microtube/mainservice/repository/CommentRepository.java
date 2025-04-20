@@ -24,13 +24,15 @@ public interface CommentRepository extends R2dbcRepository<Comment, Long> {
         """)
     Flux<CommentWithUserInfo> findByVideoId(long videoId, int size, long offset);
 
+    Mono<Long> countByVideoId(long videoId);
+
     @Query("""
         SELECT c.*, u.USERNAME username, u.NAME name, u.AVATAR avatar
         FROM COMMENT c
             JOIN USER u ON c.USER_ID = u.ID
-        WHERE VIDEO_ID = :videoId
+        WHERE c.ID = :id
         """)
-    Mono<CommentWithUserInfo> findById(long videoId);
+    Mono<CommentWithUserInfo> findById(long id);
 
-    Mono<Long> countByVideoId(long videoId);
+    Mono<Boolean> deleteByVideoId(long videoId);
 }

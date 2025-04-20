@@ -15,7 +15,10 @@ import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 
 public interface ExtendedVideoRepository {
     VideoQuery buildQuery(SearchVideoDTO criteria);
@@ -37,16 +40,44 @@ public interface ExtendedVideoRepository {
             this.paramBindings = new LinkedHashMap<>();
             this.orderedFields = new LinkedList<>();
 
-            StringBuilder queryBuilder = new StringBuilder("""
+            String accessingUserIdParam = "accessingUserId";
+            StringBuilder queryBuilder = new StringBuilder(STR."""
                     SELECT v.*, c.PATHNAME channelPathname, c.NAME channelName, c.AVATAR channelAvatar, c.USER_ID userId,
                         urv.PAUSE_POSITION pausePosition, urv.REACTION reaction
                     FROM VIDEO v
                         JOIN CHANNEL c ON v.CHANNEL_ID = c.ID
-                        LEFT JOIN USER_RELATION_VIDEO urv ON v.ID = urv.VIDEO_ID AND urv.USER_ID = :userIdWithRelation
+                        LEFT JOIN USER_RELATION_VIDEO urv ON v.ID = urv.VIDEO_ID AND urv.USER_ID = :\{accessingUserIdParam}
                     """);
             List<String> predicates = new LinkedList<>();
 
-            paramBindings.put("userIdWithRelation", Parameters.in(R2dbcType.DOUBLE, criteria.getUserIdWithRelation()));
+            // Utilize Parameters.in to pass nullable value to a param
+            paramBindings.put(accessingUserIdParam, Parameters.in(R2dbcType.DOUBLE, criteria.getAccessingUserId()));
+
+            if (criteria.getSubscribed() != null) {
+                if (criteria.getAccessingUserId() != null) {
+                    queryBuilder.append(STR." LEFT JOIN CHANNEL_SUBSCRIPTION cs ON c.ID = cs.CHANNEL_ID AND cs.USER_ID = :\{accessingUserIdParam}");
+                    predicates.add(STR."cs.CHANNEL_ID IS \{criteria.getSubscribed() ? "NOT" : ""} NULL");
+                } else {
+                    predicates.add("1 = 0");
+                }
+            }
+
+            String allowedVisibilityParam = "allowedVisibility";
+
+            // Check nullity & set again just for safety
+            if (CollectionUtils.isEmpty(criteria.getAllowedVisibility())) {
+                criteria.setAllowedVisibility(List.of(Video.Visibility.PUBLIC.number));
+            }
+
+            if (criteria.getAccessingUserId() != null) {
+                // TODO: may divide into 2 subqueries to avoid using OR (decision depends on actual performance).
+                //  Second benefit: Recommended list should not show owned videos, so using only the first subquery fits that need.
+                predicates.add(STR."((c.USER_ID != :\{accessingUserIdParam} AND v.VISIBILITY IN (:\{allowedVisibilityParam})) OR c.USER_ID = :\{accessingUserIdParam})");
+            } else {
+                predicates.add(STR."v.VISIBILITY IN (:\{allowedVisibilityParam})");
+            }
+
+            paramBindings.put(allowedVisibilityParam, criteria.getAllowedVisibility()/*.stream().map(String::valueOf).collect(Collectors.joining(",", "(", ")"))*/);
 
             if (criteria.getReaction() != null) {
                 String param = "reaction";
@@ -72,13 +103,13 @@ public interface ExtendedVideoRepository {
             if (StringUtils.hasText(criteria.getName())) {
                 String param = "name";
 
-                predicates.add(STR."MATCH(v.TITLE, v.DESCRIPTION) AGAINST(:\{param})");
+                predicates.add(STR."(MATCH(v.TITLE, v.DESCRIPTION) AGAINST(:\{param}) OR MATCH(c.PATHNAME, c.NAME, c.DESCRIPTION) AGAINST(:\{param}))");
                 paramBindings.put(param, criteria.getName());
-                orderedFields.add(STR."MATCH(v.TITLE, v.DESCRIPTION) AGAINST(:\{param}) DESC");
+                orderedFields.add(STR."MATCH(v.TITLE, v.DESCRIPTION) AGAINST(:\{param}) DESC, MATCH(c.PATHNAME, c.NAME, c.DESCRIPTION) AGAINST(:\{param}) DESC");
             }
 
             if (!predicates.isEmpty()) {
-                queryBuilder.append("\nWHERE ").append(String.join(",", predicates));
+                queryBuilder.append("\nWHERE ").append(String.join(" AND ", predicates));
             }
 
             this.queryBuilder = queryBuilder.toString();

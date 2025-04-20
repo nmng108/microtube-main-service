@@ -16,18 +16,21 @@ public interface ChannelRepository extends R2dbcRepository<Channel, Long> {
         SELECT c.*, (s.USER_ID IS NOT NULL) subscribed
         FROM microtube.channel c
             LEFT JOIN channel_subscription s ON c.ID = s.CHANNEL_ID AND s.USER_ID = :userId
-        WHERE :name IS NULL
-           OR MATCH(c.PATHNAME, c.NAME, c.DESCRIPTION) AGAINST (:name)
+        WHERE (:name IS NULL OR MATCH(c.PATHNAME, c.NAME, c.DESCRIPTION) AGAINST (:name))
+          AND (:subscribed IS NULL OR IF(:subscribed, s.USER_ID IS NOT NULL, s.USER_ID IS NULL))
+        ORDER BY IF(:name IS NULL, s.CREATED_AT, MATCH(c.PATHNAME, c.NAME, c.DESCRIPTION) AGAINST (:name)) DESC, c.CREATED_AT DESC
         LIMIT :size OFFSET :offset
         """)
-    Flux<ChannelWithPersonalSubscription> searchByNameOrPathname(@Nullable String name, @Nullable Long userId, int size, long offset);
+    Flux<ChannelWithPersonalSubscription> searchByNameAndIsSubscribed(@Nullable String name, @Nullable Boolean subscribed, @Nullable Long userId, int size, long offset);
 
     @Query("""
-        SELECT c.* FROM microtube.channel c
-        WHERE :name IS NULL
-           OR MATCH(c.PATHNAME, c.NAME, c.DESCRIPTION) AGAINST (:name)
+        SELECT COUNT(c.ID)
+        FROM microtube.channel c
+            LEFT JOIN channel_subscription s ON c.ID = s.CHANNEL_ID AND s.USER_ID = :userId
+        WHERE (:name IS NULL OR MATCH(c.PATHNAME, c.NAME, c.DESCRIPTION) AGAINST (:name))
+          AND (:subscribed IS NULL OR IF(:subscribed, s.USER_ID IS NOT NULL, s.USER_ID IS NULL))
         """)
-    Mono<Long> countSearchByNameOrPathname(@Nullable String name);
+    Mono<Long> countSearchByNameOrPathname(@Nullable String name, @Nullable Boolean subscribed, @Nullable Long userId);
 
     @Query("""
         SELECT c.*, (s.USER_ID IS NOT NULL) subscribed
@@ -70,9 +73,17 @@ public interface ChannelRepository extends R2dbcRepository<Channel, Long> {
 
     @Modifying
     @Query("UPDATE CHANNEL SET SUBSCRIPTION_COUNT = SUBSCRIPTION_COUNT + 1 WHERE ID = :id")
-    Mono<Boolean> increaseSubscription(long id);
+    Mono<Boolean> increaseSubscriptionCount(long id);
 
     @Modifying
     @Query("UPDATE CHANNEL SET SUBSCRIPTION_COUNT = SUBSCRIPTION_COUNT - 1 WHERE ID = :id")
-    Mono<Boolean> decreaseSubscription(long id);
+    Mono<Boolean> decreaseSubscriptionCount(long id);
+
+    @Modifying
+    @Query("UPDATE CHANNEL SET VIDEO_COUNT = VIDEO_COUNT + 1 WHERE ID = :id")
+    Mono<Boolean> increaseVideoCount(long id);
+
+    @Modifying
+    @Query("UPDATE CHANNEL SET VIDEO_COUNT = VIDEO_COUNT - 1 WHERE ID = :id")
+    Mono<Boolean> decreaseVideoCount(long id);
 }

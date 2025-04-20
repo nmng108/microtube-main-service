@@ -1,5 +1,7 @@
 package nmng108.microtube.mainservice.configuration;
 
+import nmng108.microtube.mainservice.dto.video.request.SearchVideoDTO;
+import nmng108.microtube.mainservice.util.converter.WebParamConverters;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.format.FormatterRegistry;
 import org.springframework.web.reactive.config.CorsRegistry;
@@ -22,6 +24,8 @@ public class WebFluxConfiguration implements WebFluxConfigurer {
     @Override
     public void addFormatters(FormatterRegistry registry) {
         WebFluxConfigurer.super.addFormatters(registry);
+
+        registry.addConverter(new WebParamConverters.SearchVideoDTOSortedFieldConverter());
     }
 
     //    @Override

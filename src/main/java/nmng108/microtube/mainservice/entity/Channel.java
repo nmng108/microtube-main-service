@@ -30,19 +30,23 @@ public class Channel extends Accountable {
     String avatar;
     @Column("SUBSCRIPTION_COUNT")
     long subscriptionCount;
+    @Column("VIDEO_COUNT")
+    long videoCount;
 
     @Column("USER_ID")
     long userId;
 
-    public Channel(Channel other) {
-        super(other);
-        this.id = other.id;
-        this.name = other.name;
-        this.pathname = other.pathname;
-        this.description = other.description;
-        this.avatar = other.avatar;
-        this.userId = other.userId;
-    }
+//    public Channel(Channel other) {
+//        super(other);
+//        this.id = other.id;
+//        this.name = other.name;
+//        this.pathname = other.pathname;
+//        this.description = other.description;
+//        this.avatar = other.avatar;
+//        this.subscriptionCount = other.subscriptionCount;
+//        this.videoCount = other.videoCount;
+//        this.userId = other.userId;
+//    }
 
     @Override
     public boolean equals(Object o) {

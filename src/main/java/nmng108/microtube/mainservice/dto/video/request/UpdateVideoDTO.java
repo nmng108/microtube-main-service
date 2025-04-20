@@ -36,7 +36,9 @@ public class UpdateVideoDTO {
 
     public void applyPatchUpdatesToEntity(Video video) {
         Optional.ofNullable(title).map(String::strip).filter(StringUtils::hasText).ifPresent(video::setTitle);
-        Optional.ofNullable(description).map(String::strip).filter(StringUtils::hasText).ifPresent(video::setDescription);
+        Optional.ofNullable(description).map(String::strip).filter(StringUtils::hasText)
+                .map((d) -> d.replaceAll("<", "&lt;").replaceAll(">", "&gt;"))
+                .ifPresent(video::setDescription);
         Optional.ofNullable(visibility).ifPresent(video::setVisibility);
         Optional.ofNullable(allowsComment).ifPresent(video::setAllowsComment);
         Optional.ofNullable(increasesView).filter((i) -> i).ifPresent((i) -> video.setViewCount(video.getViewCount() + 1));

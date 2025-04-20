@@ -22,7 +22,7 @@ public class CreateChannelDTO {
     @Size(min = 3, max = 25)
     String name;
     @Size(min = 3, max = 30)
-    @Pattern(regexp = "^[a-z]+[a-z\\d]*(_[a-z\\d]+)*$")
+    @Pattern(regexp = "^[a-z]+[a-z\\d]*([_-][a-z\\d]+)*$")
     @Schema(description = "Customize pathname to the channel. By default it will also be username.")
     String pathname;
     @Size(max = 2000)

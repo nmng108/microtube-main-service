@@ -16,7 +16,7 @@ public class UpdateChannelDTO {
     @Size(min = 3, max = 25)
     String name;
     @Size(min = 3, max = 30)
-    @Pattern(regexp = "^[a-z]+[a-z\\d]*(_[a-z\\d]+)*$")
+    @Pattern(regexp = "^[a-z]+[a-z\\d]*([_-][a-z\\d]+)*$")
     String pathname;
     @Size(max = 2000)
     String description;

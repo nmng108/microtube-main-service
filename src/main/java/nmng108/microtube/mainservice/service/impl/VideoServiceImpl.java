@@ -15,11 +15,12 @@ import nmng108.microtube.mainservice.dto.video.response.VideoDTO;
 import nmng108.microtube.mainservice.entity.Video;
 import nmng108.microtube.mainservice.exception.BadRequestException;
 import nmng108.microtube.mainservice.exception.ForbiddenException;
+import nmng108.microtube.mainservice.exception.InternalServerException;
 import nmng108.microtube.mainservice.exception.UnauthorizedException;
 import nmng108.microtube.mainservice.repository.ChannelRepository;
+import nmng108.microtube.mainservice.repository.CommentRepository;
 import nmng108.microtube.mainservice.repository.UserRelationVideoRepository;
 import nmng108.microtube.mainservice.repository.VideoRepository;
-import nmng108.microtube.mainservice.repository.extend.impl.ExtendedVideoRepositoryImpl;
 import nmng108.microtube.mainservice.repository.projection.VideoWithChannelOwner;
 import nmng108.microtube.mainservice.service.ObjectStoreService;
 import nmng108.microtube.mainservice.service.UserService;
@@ -51,6 +52,7 @@ public class VideoServiceImpl implements VideoService {
     ObjectStoreService objectStoreService;
     UserService userService;
     VideoRepository videoRepository;
+    CommentRepository commentRepository;
     UserRelationVideoRepository userRelationVideoRepository;
     ChannelRepository channelRepository;
 
@@ -62,6 +64,7 @@ public class VideoServiceImpl implements VideoService {
             ObjectStoreService objectStoreService,
             UserService userService,
             VideoRepository videoRepository,
+            CommentRepository commentRepository,
             UserRelationVideoRepository userRelationVideoRepository,
             ChannelRepository channelRepository
 //            @Value("${video.temp-dir:tmp/original-videos/}") String processingDir,
@@ -71,6 +74,7 @@ public class VideoServiceImpl implements VideoService {
         this.objectStoreService = objectStoreService;
         this.userService = userService;
         this.videoRepository = videoRepository;
+        this.commentRepository = commentRepository;
         this.userRelationVideoRepository = userRelationVideoRepository;
         this.channelRepository = channelRepository;
 //        this.processingDir = processingDir;
@@ -99,8 +103,9 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public Mono<BaseResponse<PagingResponse<VideoDTO>>> getAll(SearchVideoDTO dto) {
         return userService.getCurrentUser()
-                .map((u) -> {
-                    dto.setUserIdWithRelation(u.getId());
+                .singleOptional()
+                .map((userOptional) -> {
+                    dto.setAccessingUserId(userOptional.map(UserDetailsDTO::getId).orElse(null));
 
                     return dto;
                 })
@@ -149,10 +154,10 @@ public class VideoServiceImpl implements VideoService {
                     return videoRepository.findByCode(v.getCode())
                             .handle((_, sink) -> {
                                 log.error(STR."Generated a duplicate code '\{code}'");
-                                sink.error(new BadRequestException(STR."Having unexpected error. Try again later."));
+                                sink.error(new InternalServerException(STR."Having unexpected error. Try again later."));
                             })
                             .then(videoRepository.save(v))
-                            ;
+                            .doOnNext((_) -> channelRepository.increaseVideoCount(v.getId()).subscribeOn(Schedulers.boundedElastic()).subscribe());
                 })
 //                .publishOn(Schedulers.boundedElastic())
                 // Generate video's code later
@@ -507,13 +512,15 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
+    @Transactional
     public Mono<BaseResponse<Void>> delete(String identifiable) {
         return retrieveVideo(identifiable)
                 .switchIfEmpty(Mono.error(new NoResourceFoundException("")))
                 .zipWith(userService.getCurrentUser())
                 .publishOn(Schedulers.boundedElastic())
-                .doOnNext((tuple2) -> this.delete(tuple2.getT1(), tuple2.getT2())
+                .doOnNext((tuple2) -> delete(tuple2.getT1(), tuple2.getT2())
                         .subscribeOn(Schedulers.boundedElastic())
+                        .then(channelRepository.decreaseVideoCount(tuple2.getT1().getChannelId()))
                         .onErrorMap((e) -> {
                             log.error("Cannot delete video with ID={}. Reason: ", e.getMessage());
                             return e;
@@ -530,32 +537,54 @@ public class VideoServiceImpl implements VideoService {
      */
     @Override
     public Mono<Void> delete(Video video, UserDetailsDTO user) {
-        String hlsBucketName = objectStoreConfiguration.getHlsBucketName();
         Mono<Void> deleteDestinationDir = Mono.defer(() -> Optional.ofNullable(video.getDestFilepath())
                 .filter(StringUtils::hasText)
-                .map((dirPath) -> Flux.fromIterable(objectStoreService.removeObjectsWithPrefix(hlsBucketName, dirPath))
-                        .doOnNext((i) -> {
-                            try {
-                                log.info("[Deletion error] object: {}, message: {}", i.get().objectName(), i.get().message());
-                            } catch (Exception e) {
-                                throw new RuntimeException(e);
-                            }
-                        })
-                        .collectList()
-                        .filter(List::isEmpty)
-                        .switchIfEmpty(Mono.error(new RuntimeException("There were errors while deleting files from object store. Video ID=" + video.getId())))
-                        .then()
-                )
+                .map((storedDirPath) -> {
+                    String[] splitDirPath = storedDirPath.split(":");
+                    String bucketName = splitDirPath[0];
+                    String actualDirPath = splitDirPath[1];
+
+                    return Flux.fromIterable(objectStoreService.removeObjectsWithPrefix(bucketName, actualDirPath))
+                            .doOnNext((i) -> {
+                                try {
+                                    log.info("[Deletion error] object: {}, message: {}", i.get().objectName(), i.get().message());
+                                } catch (Exception e) {
+                                    throw new RuntimeException(e);
+                                }
+                            })
+                            .collectList()
+                            .filter(List::isEmpty)
+                            .switchIfEmpty(Mono.error(new RuntimeException("There were errors while deleting files from object store. Video ID=" + video.getId())))
+                            .then();
+                })
                 .orElse(Mono.empty()));
         Mono<Void> deleteOriginalFile = Mono.defer(() -> Optional.ofNullable(video.getTempFilepath())
                 .filter(StringUtils::hasText)
-                .map((path) -> objectStoreService.removeObjectAsync(objectStoreConfiguration.getTemporaryBucketName(), path))
+                .map((storedFilePath) -> {
+                    String[] splitDirPath = storedFilePath.split(":");
+                    String bucketName = splitDirPath[0];
+                    String actualFilePath = splitDirPath[1];
+
+                    return objectStoreService.removeObjectAsync(bucketName, actualFilePath);
+                })
+                .map(Mono::fromCompletionStage)
+                .orElse(Mono.empty()));
+        Mono<Void> deleteThumbnail = Mono.defer(() -> Optional.ofNullable(video.getThumbnail())
+                .filter(StringUtils::hasText)
+                .map((storedFilePath) -> {
+                    String[] splitDirPath = storedFilePath.split(":");
+                    String bucketName = splitDirPath[0];
+                    String actualFilePath = splitDirPath[1];
+
+                    return objectStoreService.removeObjectAsync(bucketName, actualFilePath);
+                })
                 .map(Mono::fromCompletionStage)
                 .orElse(Mono.empty()));
 
         return videoRepository.softDeleteById(video.getId(), user.getId(), ZonedDateTime.now(ZoneOffset.UTC).toLocalDateTime())
                 .doOnSuccess((b) -> log.info("result of deletion: {}", b))
-                .flatMap((_) -> Mono.when(deleteDestinationDir, deleteOriginalFile))
+                .flatMap((_) -> Mono.when(deleteDestinationDir, deleteOriginalFile, deleteThumbnail))
+                .then(commentRepository.deleteByVideoId(video.getId()))
                 .then(videoRepository.delete(video)) // delete permanently
                 .doOnTerminate(() -> log.info("Deleted video - ID={}", video.getId()))
                 ;
@@ -572,6 +601,9 @@ public class VideoServiceImpl implements VideoService {
 //        return doAction.then();
 //    }
 
+    /**
+     * Notable detail: this method allows to see UNLISTED videos when searching for a list, so using this with attention.
+     */
     @Override
     public Mono<VideoWithChannelOwner> retrieveVideo(String identifiable) {
 //        ExtendedVideoRepositoryImpl.VideoQuery query = videoRepository.buildQuery();
@@ -582,7 +614,8 @@ public class VideoServiceImpl implements VideoService {
                 .flatMap((v) -> userService.getCurrentUser().singleOptional().flatMap((userOptional) -> videoRepository.buildQuery(
                         SearchVideoDTO.builder()
                                 .ids(Collections.singletonList(v.getId()))
-                                .userIdWithRelation(userOptional.map(UserDetailsDTO::getId).orElse(null))
+                                .accessingUserId(userOptional.map(UserDetailsDTO::getId).orElse(null))
+                                .allowedVisibility(List.of(Video.Visibility.PUBLIC.number, Video.Visibility.NOT_LISTED.number))
                                 .build()
                 ).find().elementAt(0)))
 //                .flatMap((v) -> userService.getCurrentUser().map(u -> ))
