@@ -29,6 +29,7 @@ public class CommentDTO {
     String content;
     long likeCount;
     long dislikeCount;
+    long childCount;
     ZonedDateTime createdAt;
 
     public CommentDTO(CommentWithUserInfo comment, @Nullable String avatar) {
@@ -43,6 +44,7 @@ public class CommentDTO {
         this.content = comment.getContent();
         this.likeCount = comment.getLikeCount();
         this.dislikeCount = comment.getDislikeCount();
+        this.childCount = comment.getChildCount();
         this.createdAt = comment.getCreatedAt().atZone(ZoneOffset.UTC);
     }
 

@@ -11,4 +11,5 @@ public class CommentWithUserInfo extends Comment {
     String username;
     String name; // user's full name
     String avatar;
+    long childCount;
 }

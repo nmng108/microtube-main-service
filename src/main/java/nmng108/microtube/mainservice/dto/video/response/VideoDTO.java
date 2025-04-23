@@ -34,8 +34,9 @@ public class VideoDTO {
     @Nullable
     String url;
     final long viewCount;
-    long likeCount;
-    long dislikeCount;
+    Long likeCount;
+    Long dislikeCount;
+    Long commentCount;
     final Long channelId;
     @Nullable
     String channelName;
@@ -101,6 +102,7 @@ public class VideoDTO {
             this.visibility = new VisibilityDTO(video.getVisibility());
             this.likeCount = video.getLikeCount();
             this.dislikeCount = video.getDislikeCount();
+            this.commentCount = video.getCommentCount();
             this.modifiedAt = video.getModifiedAt().atZone(ZoneOffset.UTC);
             this.userId = video.getUserId();
         }

@@ -75,7 +75,7 @@ public class ChannelServiceImpl implements ChannelService {
 //                        return channelRepository.findByPathName(identifiable);
 //                    }
 //                })
-        return retrieveChannel(identifiable)
+        return retrieveExtendedChannel(identifiable)
                 .mapNotNull((c) -> new ChannelDTO(c, objectStoreService.getDownloadUrl(c.getAvatar())))
                 .mapNotNull(BaseResponse::succeeded)
                 .switchIfEmpty(Mono.error(new NoResourceFoundException("")));
@@ -172,7 +172,7 @@ public class ChannelServiceImpl implements ChannelService {
     @Transactional
     public Mono<BaseResponse<Void>> doAction(String identifiable, ChannelAction action) {
         Mono<UserDetailsDTO> userMono = userService.getCurrentUser().switchIfEmpty(Mono.error(UnauthorizedException::new));
-        Mono<ChannelWithPersonalSubscription> channelMono = retrieveChannel(identifiable).switchIfEmpty(Mono.error(() -> new NoResourceFoundException("")));
+        Mono<Channel> channelMono = retrieveChannel(identifiable).switchIfEmpty(Mono.error(() -> new NoResourceFoundException("")));
 
         return Mono.zip(userMono, channelMono)
                 .flatMap((tuple2) -> action == ChannelAction.SUBSCRIBE
@@ -186,13 +186,18 @@ public class ChannelServiceImpl implements ChannelService {
                 .thenReturn(BaseResponse.succeeded());
     }
 
-    public Mono<ChannelWithPersonalSubscription> retrieveChannel(String identifiable) {
+    public Mono<Channel> retrieveChannel(String identifiable) {
+        return Mono.fromCallable(() -> Long.parseLong(identifiable))
+                .flatMap(channelRepository::findByIdOrPathname)
+                .onErrorResume(NumberFormatException.class, (error) -> channelRepository.findByPathname(identifiable));
+    }
+
+    public Mono<ChannelWithPersonalSubscription> retrieveExtendedChannel(String identifiable) {
         return userService.getCurrentUser()
-                .flatMap((u) -> Mono.fromCallable(() -> Long.parseLong(identifiable))
-                        .flatMap((id) -> channelRepository.findByIdOrPathname(id, u.getId()).doOnNext((c) -> log.info(c.toString() + " " + u)))
-                        .onErrorResume(NumberFormatException.class, (error) -> channelRepository.findByPathname(identifiable, u.getId())))
-                .switchIfEmpty(Mono.fromCallable(() -> Long.parseLong(identifiable))
-                        .flatMap((id) -> channelRepository.findByIdOrPathname(id, null).doOnNext((c) -> log.info(c.toString())))
-                        .onErrorResume(NumberFormatException.class, (error) -> channelRepository.findByPathname(identifiable, null)));
+                .singleOptional()
+                .map((u) -> u.map(UserDetailsDTO::getId).orElse(null))
+                .flatMap((userId) -> Mono.fromCallable(() -> Long.parseLong(identifiable))
+                        .flatMap((id) -> channelRepository.findByIdOrPathname(id, userId))
+                        .onErrorResume(NumberFormatException.class, (error) -> channelRepository.findByPathname(identifiable, userId)));
     }
 }

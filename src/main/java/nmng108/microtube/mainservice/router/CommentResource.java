@@ -35,16 +35,20 @@ public class CommentResource {
     }
 
     @GetMapping(Routes.Video.basePath + "/{videoId}" + Routes.comments)
-    public Mono<ResponseEntity<BaseResponse<PagingResponse<CommentDTO>>>> getAll(@PathVariable(value = "videoId") String videoId, PagingRequest pagingRequest) {
-        return commentService.getAll(videoId, pagingRequest).map(ResponseEntity::ok);
+    public Mono<ResponseEntity<BaseResponse<PagingResponse<CommentDTO>>>> getAll(
+            @PathVariable(value = "videoId") String videoId,
+            @RequestParam(value = "parentId", required = false) Integer parentId,
+            PagingRequest pagingRequest
+    ) {
+        return commentService.getAll(videoId, parentId, pagingRequest).map(ResponseEntity::ok);
     }
 
-    @GetMapping(  Routes.comments + "/{id}")
+    @GetMapping(Routes.comments + "/{id}")
     public ResponseEntity<Mono<BaseResponse<CommentDTO>>> get(@PathVariable("id") long id) {
         return ResponseEntity.ok(commentService.get(id));
     }
 
-    @PostMapping(  Routes.comments)
+    @PostMapping(Routes.comments)
     public Mono<ResponseEntity<BaseResponse<CommentDTO>>> create(@RequestBody @Valid CreateCommentDTO dto) {
         return commentService.create(dto)
                 .map((res) -> {
@@ -54,7 +58,7 @@ public class CommentResource {
                 });
     }
 
-    @PatchMapping(  Routes.comments + "/{id}")
+    @PatchMapping(Routes.comments + "/{id}")
     public Mono<ResponseEntity<BaseResponse<CommentDTO>>> update(
             @PathVariable("id") long id,
             @RequestBody @Valid CommentResource.UpdateCommentDTO dto
@@ -62,7 +66,7 @@ public class CommentResource {
         return commentService.update(id, dto.getContent()).map(ResponseEntity::ok);
     }
 
-    @DeleteMapping(  Routes.comments + "/{id}")
+    @DeleteMapping(Routes.comments + "/{id}")
     public Mono<ResponseEntity<BaseResponse<Void>>> delete(@PathVariable("id") long id) {
         return commentService.delete(id).map(ResponseEntity.ok()::body);
     }

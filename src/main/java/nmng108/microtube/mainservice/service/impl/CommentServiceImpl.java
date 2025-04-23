@@ -22,7 +22,9 @@ import nmng108.microtube.mainservice.service.ObjectStoreService;
 import nmng108.microtube.mainservice.service.UserService;
 import nmng108.microtube.mainservice.service.VideoService;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.reactive.resource.NoResourceFoundException;
 import reactor.core.publisher.Mono;
 
@@ -37,14 +39,14 @@ public class CommentServiceImpl implements CommentService {
     CommentRepository commentRepository;
 
     @Override
-    public Mono<BaseResponse<PagingResponse<CommentDTO>>> getAll(String videoId, PagingRequest pagingRequest) {
+    public Mono<BaseResponse<PagingResponse<CommentDTO>>> getAll(String videoId, @Nullable Integer parentId, PagingRequest pagingRequest) {
         Pageable pageable = pagingRequest.toPageable();
 
         return videoService.retrieveVideo(videoId)
-                .flatMap((v) -> commentRepository.findByVideoId(v.getId(), pageable.getPageSize(), pageable.getOffset())
+                .flatMap((v) -> commentRepository.findByVideoId(v.getId(), parentId, pageable.getPageSize(), pageable.getOffset())
                         .map((c) -> new CommentDTO(c, objectStoreService.getDownloadUrl(c.getAvatar())))
                         .collectList()
-                        .zipWith(commentRepository.countByVideoId(v.getId())))
+                        .zipWith(commentRepository.countByVideoId(v.getId(), parentId)))
                 .map((tuple2) -> new PagingResponse<>(pagingRequest, tuple2.getT2(), tuple2.getT1()))
                 .switchIfEmpty(Mono.just(new PagingResponse<>()))
                 .map(BaseResponse::succeeded);
@@ -103,6 +105,7 @@ public class CommentServiceImpl implements CommentService {
     }
 
     @Override
+    @Transactional
     public Mono<BaseResponse<Void>> delete(long id) {
         Mono<CommentWithUserInfo> commentMono = commentRepository.findById(id).switchIfEmpty(Mono.error(() -> new NoResourceFoundException("")));
         Mono<UserDetailsDTO> userMono = userService.getCurrentUser().switchIfEmpty(Mono.error(UnauthorizedException::new));
@@ -112,10 +115,10 @@ public class CommentServiceImpl implements CommentService {
                     Comment comment = tuple2.getT2();
 
                     if (tuple2.getT1().getId() != comment.getUserId()) {
-                        throw new ForbiddenException();
+                        return Mono.error(new ForbiddenException());
                     }
 
-                    return commentRepository.delete(comment);
+                    return commentRepository.deleteByIdRecursively(comment.getId());
                 })
                 .thenReturn(BaseResponse.succeeded());
     }

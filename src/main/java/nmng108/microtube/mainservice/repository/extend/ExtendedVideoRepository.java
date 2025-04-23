@@ -43,7 +43,8 @@ public interface ExtendedVideoRepository {
             String accessingUserIdParam = "accessingUserId";
             StringBuilder queryBuilder = new StringBuilder(STR."""
                     SELECT v.*, c.PATHNAME channelPathname, c.NAME channelName, c.AVATAR channelAvatar, c.USER_ID userId,
-                        urv.PAUSE_POSITION pausePosition, urv.REACTION reaction
+                        urv.PAUSE_POSITION pausePosition, urv.REACTION reaction,
+                        (SELECT COUNT(0) FROM COMMENT WHERE VIDEO_ID = v.ID) commentCount
                     FROM VIDEO v
                         JOIN CHANNEL c ON v.CHANNEL_ID = c.ID
                         LEFT JOIN USER_RELATION_VIDEO urv ON v.ID = urv.VIDEO_ID AND urv.USER_ID = :\{accessingUserIdParam}
@@ -134,7 +135,8 @@ public interface ExtendedVideoRepository {
                                 row.get("channelAvatar", String.class),
                                 row.get("userId", Long.class),
                                 row.get("pausePosition", Long.class),
-                                row.get("reaction", Integer.class)
+                                row.get("reaction", Integer.class),
+                                row.get("commentCount", Long.class)
                         );
                     })
                     .all();

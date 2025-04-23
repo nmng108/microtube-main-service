@@ -64,11 +64,15 @@ public class WatchHistoryServiceImpl implements WatchHistoryService {
                             List<WatchHistoryDTO> watchHistoryDTOs = historyRecords.stream()
                                     .map((record) -> {
                                         var v = videos.get(record.getVideoId());
+                                        var dto = new WatchHistoryDTO(record, v);
 
-                                        return new WatchHistoryDTO(record, v)
-                                                .setUrl(objectStoreService.getDownloadUrl(v.getDestFilepath()))
-                                                .setThumbnail(objectStoreService.getDownloadUrl(v.getThumbnail()))
-                                                .setChannelAvatar(objectStoreService.getDownloadUrl(v.getChannelAvatar()));
+                                        if (v != null) {
+                                            dto.setUrl(objectStoreService.getDownloadUrl(v.getDestFilepath()))
+                                                    .setThumbnail(objectStoreService.getDownloadUrl(v.getThumbnail()))
+                                                    .setChannelAvatar(objectStoreService.getDownloadUrl(v.getChannelAvatar()));
+                                        }
+
+                                        return dto;
                                     })
                                     .toList();
 

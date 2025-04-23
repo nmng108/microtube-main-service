@@ -5,10 +5,11 @@ import nmng108.microtube.mainservice.dto.base.PagingRequest;
 import nmng108.microtube.mainservice.dto.base.PagingResponse;
 import nmng108.microtube.mainservice.dto.comment.CommentDTO;
 import nmng108.microtube.mainservice.dto.comment.CreateCommentDTO;
+import org.springframework.lang.Nullable;
 import reactor.core.publisher.Mono;
 
 public interface CommentService {
-    Mono<BaseResponse<PagingResponse<CommentDTO>>> getAll(String videoId, PagingRequest pagingRequest);
+    Mono<BaseResponse<PagingResponse<CommentDTO>>> getAll(String videoId, @Nullable Integer parentId, PagingRequest pagingRequest);
 
     Mono<BaseResponse<CommentDTO>> get(long id);
 

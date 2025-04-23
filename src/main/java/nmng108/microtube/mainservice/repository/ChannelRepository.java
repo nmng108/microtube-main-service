@@ -32,6 +32,9 @@ public interface ChannelRepository extends R2dbcRepository<Channel, Long> {
         """)
     Mono<Long> countSearchByNameOrPathname(@Nullable String name, @Nullable Boolean subscribed, @Nullable Long userId);
 
+    @Query("SELECT c.* FROM microtube.channel c WHERE c.ID = :id OR c.PATHNAME = :id")
+    Mono<Channel> findByIdOrPathname(long id);
+
     @Query("""
         SELECT c.*, (s.USER_ID IS NOT NULL) subscribed
         FROM microtube.channel c
@@ -44,7 +47,7 @@ public interface ChannelRepository extends R2dbcRepository<Channel, Long> {
     Mono<Channel> findByPathname(String pathname);
 
     @Query("""
-        SELECT c.*, (s.USER_ID IS NOT NULL) subscribed, c.ID ogUserId
+        SELECT c.*, (s.USER_ID IS NOT NULL) subscribed
         FROM microtube.channel c
             LEFT JOIN channel_subscription s ON c.ID = s.CHANNEL_ID AND s.USER_ID = :userId
         WHERE c.PATHNAME = :pathname

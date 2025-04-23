@@ -17,8 +17,9 @@ public class VideoWithChannelOwner extends Video {
     Long pausePosition;
     @Nullable
     Integer reaction;
+    long commentCount;
 
-    public VideoWithChannelOwner(Video other, String channelPathname, String channelName, String channelAvatar, Long userId, @Nullable Long pausePosition, @Nullable Integer reaction) {
+    public VideoWithChannelOwner(Video other, String channelPathname, String channelName, String channelAvatar, Long userId, @Nullable Long pausePosition, @Nullable Integer reaction, Long commentCount) {
         super(other);
         this.channelPathname = channelPathname;
         this.channelName = channelName;
@@ -26,5 +27,6 @@ public class VideoWithChannelOwner extends Video {
         this.userId = userId;
         this.pausePosition = pausePosition;
         this.reaction = reaction;
+        this.commentCount = commentCount;
     }
 }
