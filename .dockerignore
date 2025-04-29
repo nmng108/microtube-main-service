@@ -44,3 +44,4 @@ services/
 **/tmp*/
 **/logs*/
 **/data*/
+!src/**/data*

@@ -26,7 +26,7 @@ public class SpringSecurityAuditorAware implements ReactiveAuditorAware<Long> {
         return userService.getCurrentUser().map(UserDetailsDTO::getId);
     }
 
-    @Bean(name = "auditingDateTimeProvider")
+    @Bean("auditingDateTimeProvider")
     public DateTimeProvider dateTimeProvider() {
         return () -> Optional.of(OffsetDateTime.now(ZoneOffset.UTC)); // Replace with your desired ZoneId
     }

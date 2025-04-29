@@ -195,9 +195,12 @@ public class ChannelServiceImpl implements ChannelService {
     public Mono<ChannelWithPersonalSubscription> retrieveExtendedChannel(String identifiable) {
         return userService.getCurrentUser()
                 .singleOptional()
-                .map((u) -> u.map(UserDetailsDTO::getId).orElse(null))
-                .flatMap((userId) -> Mono.fromCallable(() -> Long.parseLong(identifiable))
-                        .flatMap((id) -> channelRepository.findByIdOrPathname(id, userId))
-                        .onErrorResume(NumberFormatException.class, (error) -> channelRepository.findByPathname(identifiable, userId)));
+                .flatMap((userDetailsOptional) -> {
+                    Long userId = userDetailsOptional.map(UserDetailsDTO::getId).orElse(null);
+
+                    return Mono.fromCallable(() -> Long.parseLong(identifiable))
+                            .flatMap((id) -> channelRepository.findByIdOrPathname(id, userId))
+                            .onErrorResume(NumberFormatException.class, (error) -> channelRepository.findByPathname(identifiable, userId));
+                });
     }
 }

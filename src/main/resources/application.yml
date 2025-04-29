@@ -7,16 +7,12 @@ api:
   server-base-path: "${spring.webflux.base-path:}${api.base-path:}"
 
 spring:
-  main:
-    web-application-type: reactive
+#  main:
+#    web-application-type: reactive # unnecessary
   application:
     name: ${APP_NAME:main-service}
   webflux:
     base-path: ${SERVER_BASE_PATH:}
-#  servlet:
-#    multipart:
-#      max-file-size: 500MB
-#      max-request-size: 100MB
 
   messages: # Alternative config option: create a bean of ReloadableResourceBundleMessageSource
     basename: ${MESSAGES_BASENAME:messages,custom-response-status,errors,error-codes} # name prefix for the file containing message props. Format: config.i18n.messages (dot-separated path names)
@@ -63,6 +59,21 @@ springdoc:
 #logging:
 #  level:
 #    web: debug
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${SERVICE_REGISTRAR_URL:http://localhost:8761/eureka}
+  instance:
+    appname: Main service # Just a representational name, not used for routing/load balancing
+#    prefer-ip-address: true
+#    ip-address: ${EUREKA_INSTANCE_IPADDR:127.0.0.1}
+    # Accept both hostname & IP address, so setting the 2 above props is unnecessary.
+    hostname: ${EUREKA_INSTANCE_HOSTNAME:127.0.0.1}
+    # If port is required to be specified, pass these props as program arguments.
+    # If not specified, the server's port will be used by default.
+#    secure-port-enabled: true
+#    secure-port:
 
 rest-service:
   auth:

@@ -14,10 +14,10 @@ services:
       - ./data/mysql.db/:/var/lib/mysql/
 #      - ./services/db/my.cnf:/etc/my.cnf
     environment:
-      MYSQL_DATABASE: ${DATABASE_NAME:-MICROTUBE}
-      MYSQL_USER: ${DATABASE_USERNAME:-dbuser}
-      MYSQL_PASSWORD: ${DATABASE_PASSWORD:-abc123}
-      MYSQL_ROOT_PASSWORD: ${DATABASE_ROOT_PASSWORD:-abc123}
+      MYSQL_DATABASE: ${MYSQL_DB_NAME:-MICROTUBE}
+      MYSQL_USER: ${MYSQL_DB_USERNAME:-dbuser}
+      MYSQL_PASSWORD: ${MYSQL_DB_PASSWORD:-abc123}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_DB_ROOT_PASSWORD:-abc123}
     expose:
       - 3306
       - 33060
@@ -32,6 +32,40 @@ services:
       interval: 20s
       timeout: 10s
       retries: 10
+
+  mongo:
+    image: mongodb/mongodb-community-server:8.0.7-ubi8
+    restart: always
+    volumes:
+      - type: bind
+        source: ./data/mongodb
+        target: /data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGODB_ROOT_USERNAME:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGODB_ROOT_PASSWORD:-abc123}
+    networks:
+      - microtube-network
+    ports:
+      - 27017:27017
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh ${MONGODB_URL:-mongodb://root:abc123@localhost:27017/} --quiet
+      interval: 20s
+      timeout: 10s
+      retries: 10
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    networks:
+      - microtube-network
+    ports:
+      - 27000:8081
+    environment:
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGODB_ROOT_USERNAME:-root}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGODB_ROOT_PASSWORD:-abc123}
+      ME_CONFIG_MONGODB_URL: ${MONGODB_URL:-mongodb://root:abc123@mongo:27017/}
+      ME_CONFIG_BASICAUTH: false
+
   minio:
     image: minio/minio:latest
     container_name: minio

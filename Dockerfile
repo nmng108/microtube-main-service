@@ -11,7 +11,7 @@
 ARG GLOWROOT_COLLECTOR_ADDRESS="http://localhost:8181"
 ARG LIBC=musl
 # Create a stage for resolving and downloading dependencies.
-FROM bellsoft/liberica-runtime-container:jdk-21-crac-slim-$LIBC AS deps
+FROM bellsoft/liberica-runtime-container:jdk-21-crac-$LIBC AS deps
 
 WORKDIR /build
 
@@ -38,7 +38,7 @@ FROM deps AS package
 
 WORKDIR /build
 
-COPY ./src src/
+COPY ./src/ ./src/
 RUN --mount=type=bind,source=pom.xml,target=pom.xml \
     --mount=type=cache,target=/root/.m2 \
     ./mvnw package -DskipTests && \
@@ -75,13 +75,13 @@ COPY --from=extract build/extracted/app.jar ./
 ARG GLOWROOT_COLLECTOR_ADDRESS
 ENV JAVA_TOOL_OPTIONS \
     --enable-preview \
+#    -Xms512m -Xmx3g \
+    -Djdk.attach.allowAttachSelf=true \
     -Dspring.profiles.active=dev \
-# Enable debugger
+    # Enable debugger
     -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000
 #    -javaagent:glowroot/glowroot.jar \
 #    -Dglowroot.collector.address=$GLOWROOT_COLLECTOR_ADDRESS
-#    -Xms512m \
-#    -Xmx3g
 
 VOLUME /opt/app/logs/
 EXPOSE 8080/tcp 8081/tcp 8000
@@ -161,16 +161,16 @@ WORKDIR /opt/app
 #COPY ./glowroot/ ./glowroot/
 # Copy lib directory & the executable jar file from the "extract" stage.
 COPY --from=extract build/extracted/lib/ ./lib/
-COPY --from=extract build/extracted/app.jar ./
+COPY --from=extract build/extracted/app.jar ./app.jar
 
 ENV SPRING_PROFILES_ACTIVE=prod
 ARG GLOWROOT_COLLECTOR_ADDRESS=http://glowroot:8181
 ENV JAVA_TOOL_OPTIONS \
     --enable-preview \
+    -Xms512m -Xmx3g \
+    -Djdk.attach.allowAttachSelf=true
 #    -javaagent:glowroot/glowroot.jar \
 #    -Dglowroot.collector.address=$GLOWROOT_COLLECTOR_ADDRESS
-    -Xms512m \
-    -Xmx3g
 
 VOLUME /opt/app/logs/
 EXPOSE 8080/tcp 8081/tcp
